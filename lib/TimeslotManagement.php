@@ -135,7 +135,7 @@ class TimeslotManagement {
 
     // List all timeslots
     public static function listTimeslots(): array {
-        $sql = 'SELECT id, date, modifier, created_at FROM timeslots ORDER BY date DESC, modifier';
+        $sql = 'SELECT * FROM timeslots ORDER BY date ASC, modifier';
 
         $st = self::pdo()->prepare($sql);
         $st->execute();
