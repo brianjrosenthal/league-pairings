@@ -114,6 +114,7 @@ try {
         if (!$item['has_error'] && $item['team_id']) {
             $availableTimeslots = [];
             $unavailableTimeslots = [];
+            $debugInfo = []; // Store debugging information
             
             foreach ($availabilityColumns as $col) {
                 $cellValue = trim($row[$col['original_header']] ?? '');
@@ -158,11 +159,26 @@ try {
                     }
                 }
                 
-                // Categorize based on cell value
+                // Store debug info for this column
+                $action = '';
                 if (strtolower($cellValue) === 'available') {
+                    $action = 'ADD';
                     $availableTimeslots = array_merge($availableTimeslots, $matchedTimeslotIds);
                 } elseif (strtolower($cellValue) === 'not available') {
+                    $action = 'REMOVE';
                     $unavailableTimeslots = array_merge($unavailableTimeslots, $matchedTimeslotIds);
+                }
+                
+                // Store debugging information
+                if (!empty($matchedTimeslotIds) || $cellValue !== '') {
+                    $debugInfo[] = [
+                        'column_header' => $col['original_header'],
+                        'date' => $date,
+                        'modifier' => $modifier,
+                        'cell_value' => $cellValue,
+                        'matched_ids' => $matchedTimeslotIds,
+                        'action' => $action
+                    ];
                 }
             }
             
@@ -171,6 +187,7 @@ try {
             $item['unavailable_timeslots'] = array_unique($unavailableTimeslots);
             $item['available_count'] = count($item['available_timeslots']);
             $item['unavailable_count'] = count($item['unavailable_timeslots']);
+            $item['debug_info'] = $debugInfo; // Store debug info
         }
         
         $previewData[] = $item;
@@ -252,6 +269,77 @@ header_html('Import Team Availability - Step 3');
     </tbody>
   </table>
 </div>
+
+<!-- Debugging Information -->
+<?php 
+$teamsWithDebugInfo = array_filter($previewData, fn($item) => !empty($item['debug_info']));
+if (!empty($teamsWithDebugInfo)): 
+?>
+<div class="card">
+  <h3>🔍 Column Mapping Debug Information</h3>
+  <p class="small">Detailed view of how CSV columns map to timeslots for each team</p>
+  
+  <?php foreach ($teamsWithDebugInfo as $item): ?>
+    <div style="margin-bottom:24px;padding:12px;background:#f5f5f5;border-radius:4px;">
+      <h4 style="margin-top:0;margin-bottom:12px;">
+        <?= h($item['team_name']) ?> 
+        <span style="color:#666;font-weight:normal;font-size:0.9em;">(Line <?= (int)$item['line_number'] ?>)</span>
+      </h4>
+      
+      <?php if (!empty($item['debug_info'])): ?>
+        <table style="width:100%;border-collapse:collapse;font-size:0.85em;">
+          <thead>
+            <tr style="background:#e0e0e0;">
+              <th style="padding:8px;text-align:left;border:1px solid #ccc;">CSV Column</th>
+              <th style="padding:8px;text-align:left;border:1px solid #ccc;">Parsed Date</th>
+              <th style="padding:8px;text-align:left;border:1px solid #ccc;">Parsed Modifier</th>
+              <th style="padding:8px;text-align:left;border:1px solid #ccc;">Cell Value</th>
+              <th style="padding:8px;text-align:left;border:1px solid #ccc;">Matched Timeslot IDs</th>
+              <th style="padding:8px;text-align:left;border:1px solid #ccc;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($item['debug_info'] as $debug): ?>
+              <tr>
+                <td style="padding:8px;border:1px solid #ccc;font-size:0.75em;max-width:200px;word-wrap:break-word;">
+                  <?= h($debug['column_header']) ?>
+                </td>
+                <td style="padding:8px;border:1px solid #ccc;">
+                  <strong><?= h($debug['date']) ?></strong>
+                </td>
+                <td style="padding:8px;border:1px solid #ccc;">
+                  <strong><?= h($debug['modifier']) ?></strong>
+                </td>
+                <td style="padding:8px;border:1px solid #ccc;">
+                  <?= h($debug['cell_value']) ?>
+                </td>
+                <td style="padding:8px;border:1px solid #ccc;">
+                  <?php if (!empty($debug['matched_ids'])): ?>
+                    <span style="color:#1976d2;"><?= implode(', ', $debug['matched_ids']) ?></span>
+                  <?php else: ?>
+                    <span style="color:#999;">No matches</span>
+                  <?php endif; ?>
+                </td>
+                <td style="padding:8px;border:1px solid #ccc;">
+                  <?php if ($debug['action'] === 'ADD'): ?>
+                    <span style="color:#388e3c;font-weight:bold;">➕ ADD</span>
+                  <?php elseif ($debug['action'] === 'REMOVE'): ?>
+                    <span style="color:#f57c00;font-weight:bold;">➖ REMOVE</span>
+                  <?php else: ?>
+                    <span style="color:#999;">-</span>
+                  <?php endif; ?>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      <?php else: ?>
+        <p style="color:#999;font-style:italic;">No availability data for this team</p>
+      <?php endif; ?>
+    </div>
+  <?php endforeach; ?>
+</div>
+<?php endif; ?>
 <?php endif; ?>
 
 <div class="card">
