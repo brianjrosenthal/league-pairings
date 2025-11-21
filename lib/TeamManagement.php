@@ -146,4 +146,68 @@ class TeamManagement {
         
         return $ok;
     }
+
+    // Get team record (wins/losses)
+    public static function getTeamRecord(int $teamId): ?array {
+        $st = self::pdo()->prepare('SELECT games_won, games_lost FROM team_records WHERE team_id = ? LIMIT 1');
+        $st->execute([$teamId]);
+        $row = $st->fetch();
+        return $row ?: null;
+    }
+
+    // List all teams with division names and records
+    public static function listTeamsWithRecords(): array {
+        $sql = 'SELECT t.id, t.name, t.description, t.division_id, d.name as division_name, t.created_at,
+                       tr.games_won, tr.games_lost
+                FROM teams t 
+                INNER JOIN divisions d ON t.division_id = d.id 
+                LEFT JOIN team_records tr ON t.id = tr.team_id
+                ORDER BY d.name, t.name';
+
+        $st = self::pdo()->prepare($sql);
+        $st->execute();
+        return $st->fetchAll();
+    }
+
+    // Update or create team record
+    public static function updateTeamRecord(UserContext $ctx, int $teamId, int $gamesWon, int $gamesLost): bool {
+        self::assertLoggedIn($ctx);
+        
+        if ($gamesWon < 0 || $gamesLost < 0) {
+            throw new InvalidArgumentException('Games won and lost must be non-negative integers.');
+        }
+
+        // Check if record exists
+        $exists = self::getTeamRecord($teamId);
+        
+        if ($exists) {
+            // Update existing record
+            $st = self::pdo()->prepare('UPDATE team_records SET games_won = ?, games_lost = ? WHERE team_id = ?');
+            $ok = $st->execute([$gamesWon, $gamesLost, $teamId]);
+        } else {
+            // Insert new record
+            $st = self::pdo()->prepare('INSERT INTO team_records (team_id, games_won, games_lost) VALUES (?, ?, ?)');
+            $ok = $st->execute([$teamId, $gamesWon, $gamesLost]);
+        }
+        
+        if ($ok) {
+            self::log('team_record.update', $teamId, ['games_won' => $gamesWon, 'games_lost' => $gamesLost]);
+        }
+        
+        return $ok;
+    }
+
+    // Clear/delete team record
+    public static function clearTeamRecord(UserContext $ctx, int $teamId): bool {
+        self::assertLoggedIn($ctx);
+        
+        $st = self::pdo()->prepare('DELETE FROM team_records WHERE team_id = ?');
+        $ok = $st->execute([$teamId]);
+        
+        if ($ok) {
+            self::log('team_record.clear', $teamId);
+        }
+        
+        return $ok;
+    }
 }

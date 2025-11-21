@@ -164,6 +164,14 @@ CREATE TABLE team_availability (
 CREATE INDEX idx_team_availability_team ON team_availability(team_id);
 CREATE INDEX idx_team_availability_timeslot ON team_availability(timeslot_id);
 
+-- ===== Team Records =====
+CREATE TABLE team_records (
+  team_id INT NOT NULL PRIMARY KEY,
+  games_won INT NOT NULL DEFAULT 0,
+  games_lost INT NOT NULL DEFAULT 0,
+  CONSTRAINT fk_team_records_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- Optional: seed an admin user (update email and password hash, then remove)
 INSERT INTO users (first_name,last_name,email,password_hash,is_admin,email_verified_at)
 VALUES ('Jeff','Millman','millman.jeffry@gmail.com','$2y$10$9xH7Jq4v3o6s9k3y8i4rVOyWb0yBYZ5rW.0f9pZ.gG9K6l7lS6b2S',1,NOW());
