@@ -16,8 +16,8 @@ if (isset($_GET['err'])) {
     $err = $_GET['err'];
 }
 
-// Get all teams with records
-$teams = TeamManagement::listTeamsWithRecords();
+// Get all teams
+$teams = TeamManagement::listTeams();
 
 header_html('Teams');
 ?>
@@ -40,8 +40,6 @@ header_html('Teams');
           <th>Name</th>
           <th>Division</th>
           <th>Description</th>
-          <th>Won</th>
-          <th>Lost</th>
           <th></th>
         </tr>
       </thead>
@@ -51,12 +49,9 @@ header_html('Teams');
             <td><?= h($team['name'] ?? '') ?></td>
             <td><?= h($team['division_name'] ?? '') ?></td>
             <td><?= h($team['description'] ?? '') ?></td>
-            <td><?= isset($team['games_won']) ? (int)$team['games_won'] : '' ?></td>
-            <td><?= isset($team['games_lost']) ? (int)$team['games_lost'] : '' ?></td>
             <td class="small">
               <a class="button small" href="/teams/previous_games.php?id=<?= (int)$team['id'] ?>">Previous Games</a>
               <a class="button small" href="/teams/availability.php?id=<?= (int)$team['id'] ?>">Availability</a>
-              <a class="button small" href="/teams/edit_record.php?id=<?= (int)$team['id'] ?>">Edit Record</a>
               <a class="button small" href="/teams/edit.php?id=<?= (int)$team['id'] ?>">Edit</a>
             </td>
           </tr>
