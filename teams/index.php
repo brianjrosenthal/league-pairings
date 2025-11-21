@@ -50,6 +50,7 @@ header_html('Teams');
             <td><?= h($team['division_name'] ?? '') ?></td>
             <td><?= h($team['description'] ?? '') ?></td>
             <td class="small">
+              <a class="button small" href="/teams/availability.php?id=<?= (int)$team['id'] ?>">Availability</a>
               <a class="button small" href="/teams/edit.php?id=<?= (int)$team['id'] ?>">Edit</a>
             </td>
           </tr>

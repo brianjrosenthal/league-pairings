@@ -49,6 +49,7 @@ header_html('Timeslots');
             <td><?= h($timeslot['modifier'] ?? '') ?></td>
             <td class="small">
               <a class="button small" href="/timeslots/locations.php?id=<?= (int)$timeslot['id'] ?>">Locations</a>
+              <a class="button small" href="/timeslots/teams.php?id=<?= (int)$timeslot['id'] ?>">Teams</a>
               <a class="button small" href="/timeslots/edit.php?id=<?= (int)$timeslot['id'] ?>">Edit</a>
             </td>
           </tr>
