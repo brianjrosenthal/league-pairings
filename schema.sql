@@ -129,6 +129,17 @@ CREATE TABLE locations (
 
 CREATE INDEX idx_locations_name ON locations(name);
 
+-- ===== Timeslots =====
+CREATE TABLE timeslots (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  date DATE NOT NULL,
+  modifier VARCHAR(255) NOT NULL DEFAULT '',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_date_modifier (date, modifier)
+) ENGINE=InnoDB;
+
+CREATE INDEX idx_timeslots_date ON timeslots(date);
+
 -- Optional: seed an admin user (update email and password hash, then remove)
 INSERT INTO users (first_name,last_name,email,password_hash,is_admin,email_verified_at)
 VALUES ('Jeff','Millman','millman.jeffry@gmail.com','$2y$10$9xH7Jq4v3o6s9k3y8i4rVOyWb0yBYZ5rW.0f9pZ.gG9K6l7lS6b2S',1,NOW());
