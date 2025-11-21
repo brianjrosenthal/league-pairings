@@ -29,6 +29,9 @@ if (isset($_GET['division_id'])) {
 if (isset($_GET['description'])) {
     $form['description'] = $_GET['description'];
 }
+if (isset($_GET['previous_year_ranking'])) {
+    $form['previous_year_ranking'] = $_GET['previous_year_ranking'];
+}
 
 header_html('Add Team');
 ?>
@@ -58,6 +61,10 @@ header_html('Add Team');
 
     <label>Description (optional)
       <textarea name="description" rows="3" placeholder="Optional description"><?=h($form['description'] ?? '')?></textarea>
+    </label>
+
+    <label>Previous Year Ranking (optional)
+      <input type="number" name="previous_year_ranking" value="<?=h($form['previous_year_ranking'] ?? '')?>" min="1" placeholder="e.g., 1, 2, 3...">
     </label>
 
     <div class="actions">

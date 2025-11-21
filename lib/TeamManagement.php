@@ -35,7 +35,7 @@ class TeamManagement {
     }
 
     // Create a new team
-    public static function createTeam(UserContext $ctx, int $divisionId, string $name, string $description): int {
+    public static function createTeam(UserContext $ctx, int $divisionId, string $name, string $description, ?int $previousYearRanking = null): int {
         self::assertLoggedIn($ctx);
         
         $name = self::str($name);
@@ -54,13 +54,18 @@ class TeamManagement {
             throw new InvalidArgumentException('Selected division does not exist.');
         }
 
+        // Validate ranking if provided
+        if ($previousYearRanking !== null && $previousYearRanking <= 0) {
+            throw new InvalidArgumentException('Previous year ranking must be a positive integer.');
+        }
+
         $st = self::pdo()->prepare(
-            "INSERT INTO teams (division_id, name, description) VALUES (?, ?, ?)"
+            "INSERT INTO teams (division_id, name, description, previous_year_ranking) VALUES (?, ?, ?, ?)"
         );
-        $st->execute([$divisionId, $name, $description]);
+        $st->execute([$divisionId, $name, $description, $previousYearRanking]);
         $id = (int)self::pdo()->lastInsertId();
         
-        self::log('team.create', $id, ['name' => $name, 'division_id' => $divisionId]);
+        self::log('team.create', $id, ['name' => $name, 'division_id' => $divisionId, 'previous_year_ranking' => $previousYearRanking]);
         
         return $id;
     }
@@ -101,7 +106,7 @@ class TeamManagement {
     }
 
     // Update team
-    public static function updateTeam(UserContext $ctx, int $id, int $divisionId, string $name, string $description): bool {
+    public static function updateTeam(UserContext $ctx, int $id, int $divisionId, string $name, string $description, ?int $previousYearRanking = null): bool {
         self::assertLoggedIn($ctx);
         
         $name = self::str($name);
@@ -120,11 +125,16 @@ class TeamManagement {
             throw new InvalidArgumentException('Selected division does not exist.');
         }
 
-        $st = self::pdo()->prepare('UPDATE teams SET division_id = ?, name = ?, description = ? WHERE id = ?');
-        $ok = $st->execute([$divisionId, $name, $description, $id]);
+        // Validate ranking if provided
+        if ($previousYearRanking !== null && $previousYearRanking <= 0) {
+            throw new InvalidArgumentException('Previous year ranking must be a positive integer.');
+        }
+
+        $st = self::pdo()->prepare('UPDATE teams SET division_id = ?, name = ?, description = ?, previous_year_ranking = ? WHERE id = ?');
+        $ok = $st->execute([$divisionId, $name, $description, $previousYearRanking, $id]);
         
         if ($ok) {
-            self::log('team.update', $id, ['name' => $name, 'division_id' => $divisionId]);
+            self::log('team.update', $id, ['name' => $name, 'division_id' => $divisionId, 'previous_year_ranking' => $previousYearRanking]);
         }
         
         return $ok;
