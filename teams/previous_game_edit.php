@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../partials.php';
+require_once __DIR__ . '/../lib/TeamManagement.php';
 require_once __DIR__ . '/../lib/PreviousGamesManagement.php';
 Application::init();
 require_login();
@@ -25,8 +26,25 @@ if (!$game) {
     exit;
 }
 
-// Get all teams for dropdowns
-$allTeams = PreviousGamesManagement::getAllTeams();
+// Load the context team to get its division
+$contextTeam = TeamManagement::findById($teamId);
+if (!$contextTeam) {
+    header('Location: /teams/?err=' . urlencode('Team not found.'));
+    exit;
+}
+
+// Determine which team in the game is the context team
+$isTeam1Context = ((int)$game['team_1_id'] === $teamId);
+$isTeam2Context = ((int)$game['team_2_id'] === $teamId);
+
+// Verify the context team is actually in this game
+if (!$isTeam1Context && !$isTeam2Context) {
+    header('Location: /teams/previous_games.php?id=' . $teamId . '&err=' . urlencode('This game does not involve the selected team.'));
+    exit;
+}
+
+// Get teams in the same division for the editable team dropdown
+$divisionTeams = PreviousGamesManagement::getTeamsByDivision((int)$contextTeam['division_id']);
 
 // Handle pre-populated form data from validation errors
 $date = isset($_GET['date']) ? $_GET['date'] : $game['date'];
@@ -47,7 +65,7 @@ if (isset($_GET['err'])) {
 header_html('Edit Previous Game');
 ?>
 
-<h2>Edit Previous Game</h2>
+<h2>Edit Previous Game: <?= h($contextTeam['name']) ?></h2>
 <?php if ($msg): ?><p class="flash"><?=h($msg)?></p><?php endif; ?>
 <?php if ($err): ?><p class="error"><?=h($err)?></p><?php endif; ?>
 
@@ -61,33 +79,59 @@ header_html('Edit Previous Game');
       <input type="date" name="date" value="<?= h($date) ?>" required>
     </label>
 
-    <label>Team 1
-      <select name="team_1_id" required>
-        <?php foreach ($allTeams as $t): ?>
-          <option value="<?= (int)$t['id'] ?>" <?= $team1Id === (int)$t['id'] ? 'selected' : '' ?>>
-            <?= h($t['name']) ?> (<?= h($t['division_name']) ?>)
-          </option>
-        <?php endforeach; ?>
-      </select>
-    </label>
+    <?php if ($isTeam1Context): ?>
+      <!-- Context team is Team 1 - lock it, allow editing Team 2 -->
+      <div style="margin-bottom: 20px;">
+        <strong>Team 1:</strong> <?= h($game['team_1_name']) ?>
+        <input type="hidden" name="team_1_id" value="<?= (int)$team1Id ?>">
+      </div>
 
-    <label>Team 1 Score
-      <input type="number" name="team_1_score" value="<?= (int)$team1Score ?>" min="0" required>
-    </label>
+      <label>Team 1 Score
+        <input type="number" name="team_1_score" value="<?= (int)$team1Score ?>" min="0" required>
+      </label>
 
-    <label>Team 2
-      <select name="team_2_id" required>
-        <?php foreach ($allTeams as $t): ?>
-          <option value="<?= (int)$t['id'] ?>" <?= $team2Id === (int)$t['id'] ? 'selected' : '' ?>>
-            <?= h($t['name']) ?> (<?= h($t['division_name']) ?>)
-          </option>
-        <?php endforeach; ?>
-      </select>
-    </label>
+      <label>Team 2
+        <select name="team_2_id" required>
+          <?php foreach ($divisionTeams as $t): ?>
+            <?php if ((int)$t['id'] !== $teamId): ?>
+              <option value="<?= (int)$t['id'] ?>" <?= $team2Id === (int)$t['id'] ? 'selected' : '' ?>>
+                <?= h($t['name']) ?>
+              </option>
+            <?php endif; ?>
+          <?php endforeach; ?>
+        </select>
+      </label>
 
-    <label>Team 2 Score
-      <input type="number" name="team_2_score" value="<?= (int)$team2Score ?>" min="0" required>
-    </label>
+      <label>Team 2 Score
+        <input type="number" name="team_2_score" value="<?= (int)$team2Score ?>" min="0" required>
+      </label>
+    <?php else: ?>
+      <!-- Context team is Team 2 - allow editing Team 1, lock Team 2 -->
+      <label>Team 1
+        <select name="team_1_id" required>
+          <?php foreach ($divisionTeams as $t): ?>
+            <?php if ((int)$t['id'] !== $teamId): ?>
+              <option value="<?= (int)$t['id'] ?>" <?= $team1Id === (int)$t['id'] ? 'selected' : '' ?>>
+                <?= h($t['name']) ?>
+              </option>
+            <?php endif; ?>
+          <?php endforeach; ?>
+        </select>
+      </label>
+
+      <label>Team 1 Score
+        <input type="number" name="team_1_score" value="<?= (int)$team1Score ?>" min="0" required>
+      </label>
+
+      <div style="margin-bottom: 20px;">
+        <strong>Team 2:</strong> <?= h($game['team_2_name']) ?>
+        <input type="hidden" name="team_2_id" value="<?= (int)$team2Id ?>">
+      </div>
+
+      <label>Team 2 Score
+        <input type="number" name="team_2_score" value="<?= (int)$team2Score ?>" min="0" required>
+      </label>
+    <?php endif; ?>
 
     <div class="actions">
       <button class="primary" type="submit">Save Game</button>

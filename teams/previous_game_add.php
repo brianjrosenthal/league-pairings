@@ -19,8 +19,8 @@ if (!$team) {
     exit;
 }
 
-// Get all teams for dropdowns
-$allTeams = PreviousGamesManagement::getAllTeams();
+// Get teams in the same division for Team 2 dropdown
+$divisionTeams = PreviousGamesManagement::getTeamsByDivision((int)$team['division_id']);
 
 // Handle pre-populated form data from validation errors
 $date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
@@ -54,15 +54,10 @@ header_html('Add Previous Game');
       <input type="date" name="date" value="<?= h($date) ?>" required>
     </label>
 
-    <label>Team 1
-      <select name="team_1_id" required>
-        <?php foreach ($allTeams as $t): ?>
-          <option value="<?= (int)$t['id'] ?>" <?= $team1Id === (int)$t['id'] ? 'selected' : '' ?>>
-            <?= h($t['name']) ?> (<?= h($t['division_name']) ?>)
-          </option>
-        <?php endforeach; ?>
-      </select>
-    </label>
+    <div style="margin-bottom: 20px;">
+      <strong>Team 1:</strong> <?= h($team['name']) ?>
+      <input type="hidden" name="team_1_id" value="<?= (int)$teamId ?>">
+    </div>
 
     <label>Team 1 Score
       <input type="number" name="team_1_score" value="<?= (int)$team1Score ?>" min="0" required>
@@ -71,10 +66,10 @@ header_html('Add Previous Game');
     <label>Team 2
       <select name="team_2_id" required>
         <option value="">Select team</option>
-        <?php foreach ($allTeams as $t): ?>
+        <?php foreach ($divisionTeams as $t): ?>
           <?php if ((int)$t['id'] !== $teamId): ?>
             <option value="<?= (int)$t['id'] ?>" <?= $team2Id === (int)$t['id'] ? 'selected' : '' ?>>
-              <?= h($t['name']) ?> (<?= h($t['division_name']) ?>)
+              <?= h($t['name']) ?>
             </option>
           <?php endif; ?>
         <?php endforeach; ?>

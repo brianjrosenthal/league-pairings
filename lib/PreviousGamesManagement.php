@@ -175,4 +175,17 @@ class PreviousGamesManagement {
         $st->execute();
         return $st->fetchAll();
     }
+
+    // Get teams by division for dropdowns
+    public static function getTeamsByDivision(int $divisionId): array {
+        $sql = 'SELECT t.id, t.name, d.name as division_name 
+                FROM teams t 
+                INNER JOIN divisions d ON t.division_id = d.id 
+                WHERE t.division_id = ?
+                ORDER BY t.name';
+        
+        $st = self::pdo()->prepare($sql);
+        $st->execute([$divisionId]);
+        return $st->fetchAll();
+    }
 }
