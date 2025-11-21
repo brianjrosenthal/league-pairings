@@ -37,6 +37,7 @@ header_html('Teams');
         </button>
       </form>
     <?php endif; ?>
+    <a class="button" href="/teams/import_last_year_rankings_step_1.php">Import Last Year's Rankings</a>
     <a class="button" href="/teams/import_availability_step_1.php">Import Team Availability</a>
     <a class="button" href="/teams/import_step_1.php">Import</a>
     <a class="button" href="/teams/add.php">Add</a>

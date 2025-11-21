@@ -157,6 +157,34 @@ class TeamManagement {
         return $ok;
     }
 
+    // Update team ranking only (for ranking import)
+    public static function updateTeamRanking(UserContext $ctx, int $id, int $ranking): bool {
+        self::assertLoggedIn($ctx);
+        
+        if ($ranking <= 0) {
+            throw new InvalidArgumentException('Ranking must be a positive integer.');
+        }
+
+        // Get team info before update for logging
+        $team = self::findById($id);
+        if (!$team) {
+            throw new InvalidArgumentException('Team not found.');
+        }
+
+        $st = self::pdo()->prepare('UPDATE teams SET previous_year_ranking = ? WHERE id = ?');
+        $ok = $st->execute([$ranking, $id]);
+        
+        if ($ok) {
+            self::log('team.update_ranking', $id, [
+                'name' => $team['name'],
+                'old_ranking' => $team['previous_year_ranking'],
+                'new_ranking' => $ranking
+            ]);
+        }
+        
+        return $ok;
+    }
+
     // === Import-specific methods ===
 
     // Find team by name (for duplicate detection during import)
