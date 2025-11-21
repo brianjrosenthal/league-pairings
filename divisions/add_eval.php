@@ -5,7 +5,7 @@ Application::init();
 require_login();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: /divisions.php');
+    header('Location: /divisions/');
     exit;
 }
 
@@ -36,7 +36,7 @@ try {
     $divisionId = DivisionManagement::createDivision($ctx, $name);
     
     // Success - redirect to divisions list with success message
-    header('Location: /divisions.php?msg=' . urlencode('Your division has been added.'));
+    header('Location: /divisions/?msg=' . urlencode('Your division has been added.'));
     exit;
     
 } catch (Exception $e) {

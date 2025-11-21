@@ -49,7 +49,7 @@ class ApplicationUI {
         $navRight = [];
         if ($u) {
             $navLeft[] = $link('/index.php','Home');
-            $navLeft[] = $link('/divisions.php','Divisions');
+            $navLeft[] = $link('/divisions/','Divisions');
             
             // Admin menu goes on the right side
             if (!empty($u['is_admin'])) {

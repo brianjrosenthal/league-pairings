@@ -38,7 +38,7 @@ header_html('Add Division');
 
     <div class="actions">
       <button class="primary" type="submit">Add Division</button>
-      <a class="button" href="/divisions.php">Cancel</a>
+      <a class="button" href="/divisions/">Cancel</a>
     </div>
   </form>
 </div>

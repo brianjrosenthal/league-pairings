@@ -5,7 +5,7 @@ Application::init();
 require_login();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: /divisions.php');
+    header('Location: /divisions/');
     exit;
 }
 
@@ -17,7 +17,7 @@ $name = trim($_POST['name'] ?? '');
 
 // Validate ID
 if ($id <= 0) {
-    header('Location: /divisions.php?err=' . urlencode('Invalid division ID.'));
+    header('Location: /divisions/?err=' . urlencode('Invalid division ID.'));
     exit;
 }
 
@@ -44,7 +44,7 @@ try {
     DivisionManagement::updateDivision($ctx, $id, $name);
     
     // Success - redirect to divisions list with success message
-    header('Location: /divisions.php?msg=' . urlencode('Your division has been updated.'));
+    header('Location: /divisions/?msg=' . urlencode('Your division has been updated.'));
     exit;
     
 } catch (Exception $e) {

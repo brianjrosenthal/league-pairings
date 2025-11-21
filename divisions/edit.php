@@ -7,14 +7,14 @@ require_login();
 // Get division ID
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($id <= 0) {
-    header('Location: /divisions.php?err=' . urlencode('Invalid division ID.'));
+    header('Location: /divisions/?err=' . urlencode('Invalid division ID.'));
     exit;
 }
 
 // Load division
 $division = DivisionManagement::findById($id);
 if (!$division) {
-    header('Location: /divisions.php?err=' . urlencode('Division not found.'));
+    header('Location: /divisions/?err=' . urlencode('Division not found.'));
     exit;
 }
 
@@ -55,7 +55,20 @@ header_html('Edit Division');
 
     <div class="actions">
       <button class="primary" type="submit">Save Changes</button>
-      <a class="button" href="/divisions.php">Cancel</a>
+      <a class="button" href="/divisions/">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Delete Division</h3>
+  <p>Deleting this division is permanent and cannot be undone.</p>
+  <form method="post" action="/divisions/delete_eval.php" onsubmit="return confirm('Are you sure you want to delete this division? This action cannot be undone.');" class="stack">
+    <input type="hidden" name="csrf" value="<?=h(csrf_token())?>">
+    <input type="hidden" name="id" value="<?=(int)$id?>">
+    
+    <div class="actions">
+      <button type="submit" class="button" style="background-color:#dc3545;color:white;">Delete Division</button>
     </div>
   </form>
 </div>

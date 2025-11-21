@@ -1,6 +1,6 @@
 <?php
-require_once __DIR__ . '/partials.php';
-require_once __DIR__ . '/lib/DivisionManagement.php';
+require_once __DIR__ . '/../partials.php';
+require_once __DIR__ . '/../lib/DivisionManagement.php';
 Application::init();
 require_login();
 
@@ -71,7 +71,6 @@ header_html('Divisions');
       <thead>
         <tr>
           <th>Name</th>
-          <th>Created</th>
           <th></th>
         </tr>
       </thead>
@@ -79,7 +78,6 @@ header_html('Divisions');
         <?php foreach ($divisions as $division): ?>
           <tr>
             <td><?= h($division['name'] ?? '') ?></td>
-            <td><?= h(date('M j, Y', strtotime($division['created_at']))) ?></td>
             <td class="small">
               <a class="button small" href="/divisions/edit.php?id=<?= (int)$division['id'] ?>">Edit</a>
             </td>
