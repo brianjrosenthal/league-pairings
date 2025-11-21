@@ -72,6 +72,43 @@ class TimeslotManagement {
         return $d && $d->format('Y-m-d') === $date;
     }
 
+    // Normalize date to Y-m-d format (accepts multiple formats)
+    public static function normalizeDate(string $date): ?string {
+        $date = trim($date);
+        
+        // Try MM/DD/YYYY format first (common US format)
+        $d = \DateTime::createFromFormat('m/d/Y', $date);
+        if ($d && $d->format('m/d/Y') === $date) {
+            return $d->format('Y-m-d');
+        }
+        
+        // Try M/D/YYYY format (without leading zeros)
+        $d = \DateTime::createFromFormat('n/j/Y', $date);
+        if ($d && $d->format('n/j/Y') === $date) {
+            return $d->format('Y-m-d');
+        }
+        
+        // Try "January 3, 2025" format (full month name)
+        $d = \DateTime::createFromFormat('F j, Y', $date);
+        if ($d && $d->format('F j, Y') === $date) {
+            return $d->format('Y-m-d');
+        }
+        
+        // Try "Jan 3, 2025" format (abbreviated month name)
+        $d = \DateTime::createFromFormat('M j, Y', $date);
+        if ($d && $d->format('M j, Y') === $date) {
+            return $d->format('Y-m-d');
+        }
+        
+        // Try YYYY-MM-DD format (ISO format)
+        $d = \DateTime::createFromFormat('Y-m-d', $date);
+        if ($d && $d->format('Y-m-d') === $date) {
+            return $date; // Already in correct format
+        }
+        
+        return null; // Invalid format
+    }
+
     // Check if timeslot exists
     public static function timeslotExists(string $date, string $modifier, ?int $excludeId = null): bool {
         $date = self::str($date);

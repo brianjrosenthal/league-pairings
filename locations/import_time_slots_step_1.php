@@ -86,14 +86,24 @@ header_html('Import Location Time Slots - Step 1');
   <p>Your CSV file should contain the following columns:</p>
   <ul>
     <li><strong>location</strong> - The location name (must match existing location, required)</li>
-    <li><strong>date</strong> or <strong>Game Date</strong> - The date in YYYY-MM-DD format (required)</li>
+    <li><strong>date</strong> or <strong>Game Date</strong> - Date in multiple formats accepted: MM/DD/YYYY, YYYY-MM-DD, or "January 3, 2025" (required)</li>
     <li><strong>modifier</strong> or <strong>Start Time</strong> - Time modifier like "6:00 PM" (optional)</li>
   </ul>
-  <p class="small">Example:</p>
+  <p class="small">Example with YYYY-MM-DD format:</p>
   <pre style="background:#f5f5f5;padding:12px;border-radius:4px;">location,Game Date,Start Time
 Court A,2025-12-15,6:00 PM
 Court B,2025-12-15,7:30 PM
 Court A,2025-12-22,6:00 PM</pre>
+  <p class="small">Example with MM/DD/YYYY format:</p>
+  <pre style="background:#f5f5f5;padding:12px;border-radius:4px;">location,Game Date,Start Time
+Court A,12/15/2025,6:00 PM
+Court B,12/15/2025,7:30 PM
+Court A,12/22/2025,6:00 PM</pre>
+  <p class="small">Example with natural language format:</p>
+  <pre style="background:#f5f5f5;padding:12px;border-radius:4px;">location,Game Date,Start Time
+Court A,December 15, 2025,6:00 PM
+Court B,December 15, 2025,7:30 PM
+Court A,December 22, 2025,6:00 PM</pre>
 </div>
 
 <?php footer_html(); ?>

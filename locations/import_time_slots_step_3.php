@@ -82,12 +82,16 @@ try {
                 $hasErrors = true;
             }
             
-            // Validate date format
-            $d = \DateTime::createFromFormat('Y-m-d', $date);
-            if (!$d || $d->format('Y-m-d') !== $date) {
+            // Normalize and validate date format (accepts multiple formats)
+            $normalizedDate = TimeslotManagement::normalizeDate($date);
+            if ($normalizedDate === null) {
                 $item['has_error'] = true;
-                $item['error_message'] = "Invalid date format (use YYYY-MM-DD)";
+                $item['error_message'] = "Invalid date format (use MM/DD/YYYY, YYYY-MM-DD, or 'January 3, 2025')";
                 $hasErrors = true;
+            } else {
+                // Update the date to normalized format for consistency
+                $item['date'] = $normalizedDate;
+                $date = $normalizedDate;
             }
             
             // Check for duplicates (only if no errors so far)
