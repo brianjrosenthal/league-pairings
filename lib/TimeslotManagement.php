@@ -231,4 +231,26 @@ class TimeslotManagement {
         // Create new timeslot
         return self::createTimeslot($ctx, $date, $modifier);
     }
+
+    // Delete all timeslots (and cascading deletes team_availability and location_availability)
+    public static function deleteAllTimeslots(UserContext $ctx): int {
+        self::assertLoggedIn($ctx);
+        
+        // Get count before deletion for logging
+        $st = self::pdo()->prepare('SELECT COUNT(*) FROM timeslots');
+        $st->execute();
+        $count = (int)$st->fetchColumn();
+        
+        if ($count === 0) {
+            return 0;
+        }
+        
+        // Delete all timeslots (CASCADE will handle team_availability and location_availability)
+        $st = self::pdo()->prepare('DELETE FROM timeslots');
+        $st->execute();
+        
+        self::log('timeslots.delete_all', null, ['count' => $count]);
+        
+        return $count;
+    }
 }

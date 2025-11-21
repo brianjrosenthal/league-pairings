@@ -27,7 +27,18 @@ header_html('Timeslots');
 
 <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
   <h2>Timeslots</h2>
-  <a class="button" href="/timeslots/add.php">Add</a>
+  <div style="display:flex;gap:8px;">
+    <?php if (!empty($timeslots) && $me['is_admin']): ?>
+      <form method="post" action="/timeslots/delete_all_eval.php" style="display:inline;margin:0;" 
+            onsubmit="return confirm('Are you sure you want to delete ALL timeslots? This will permanently delete all timeslots and their availability records. This action cannot be undone.');">
+        <input type="hidden" name="csrf" value="<?=h(csrf_token())?>">
+        <button type="submit" class="button" style="background:#d32f2f;color:white;border:none;cursor:pointer;">
+          Delete All Timeslots
+        </button>
+      </form>
+    <?php endif; ?>
+    <a class="button" href="/timeslots/add.php">Add</a>
+  </div>
 </div>
 
 <?php if (empty($timeslots)): ?>
