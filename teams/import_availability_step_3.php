@@ -106,13 +106,7 @@ try {
                 $hasErrors = true;
             } else {
                 $item['team_id'] = (int)$team['id'];
-                
-                // Validate division matches
-                if ($divisionName !== $team['division_name']) {
-                    $item['has_error'] = true;
-                    $item['error_message'] = "Division mismatch: expected '{$team['division_name']}', got '{$divisionName}'";
-                    $hasErrors = true;
-                }
+                // Division validation removed - ignoring division column for flexibility
             }
         }
         
