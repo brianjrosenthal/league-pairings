@@ -1,4 +1,3 @@
--- customgpt application schema
 -- Create DB then use it
 SET NAMES utf8mb4;
 SET time_zone = '+00:00';
@@ -98,6 +97,17 @@ CREATE INDEX idx_emails_sent_user_id ON emails_sent(sent_by_user_id);
 CREATE INDEX idx_emails_sent_to_email ON emails_sent(to_email);
 CREATE INDEX idx_emails_sent_success ON emails_sent(success);
 
+-- ===== Divisions =====
+CREATE TABLE divisions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL UNIQUE,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE INDEX idx_divisions_name ON divisions(name);
+
 -- Optional: seed an admin user (update email and password hash, then remove)
+INSERT INTO users (first_name,last_name,email,password_hash,is_admin,email_verified_at)
+VALUES ('Jeff','Millman','millman.jeffry@gmail.com','$2y$10$9xH7Jq4v3o6s9k3y8i4rVOyWb0yBYZ5rW.0f9pZ.gG9K6l7lS6b2S',1,NOW());
 INSERT INTO users (first_name,last_name,email,password_hash,is_admin,email_verified_at)
 VALUES ('Brian','Rosenthal','brian.rosenthal@gmail.com','$2y$10$9xH7Jq4v3o6s9k3y8i4rVOyWb0yBYZ5rW.0f9pZ.gG9K6l7lS6b2S',1,NOW());

@@ -1,5 +1,5 @@
 ### Project Brief
-"rag" is a web application to allow users to upload documents and then build a custom gpt that responds with answers from those documents.
+"leage-pairings" is a web application to allow users to upload teams, time slots, availability, and record, and then generate a list of pairings for the next few games.
 
 ## User Types
 
