@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         // Store file temporarily
-        $tempPath = CsvImportHelper::storeTempFile($file['tmp_name'], $file['name']);
+        $tempPath = CsvImportHelper::saveUploadedFile($file);
         
         // Store import data in session
         $_SESSION['team_import'] = [
