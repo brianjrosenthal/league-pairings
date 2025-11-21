@@ -27,7 +27,10 @@ header_html('Locations');
 
 <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
   <h2>Locations</h2>
-  <a class="button" href="/locations/add.php">Add</a>
+  <div style="display:flex;gap:8px;">
+    <a class="button" href="/locations/import_step_1.php">Import</a>
+    <a class="button" href="/locations/add.php">Add</a>
+  </div>
 </div>
 
 <?php if (empty($locations)): ?>

@@ -136,4 +136,43 @@ class LocationManagement {
         
         return $ok;
     }
+
+    // === Import-specific methods ===
+
+    // Find location by name (for duplicate detection during import)
+    public static function findByName(string $name): ?array {
+        $name = self::str($name);
+        $st = self::pdo()->prepare('SELECT * FROM locations WHERE name = ? LIMIT 1');
+        $st->execute([$name]);
+        $row = $st->fetch();
+        return $row ?: null;
+    }
+
+    // Get all existing location names with descriptions for batch duplicate checking
+    public static function getAllLocationData(): array {
+        $sql = 'SELECT name, description FROM locations';
+        $st = self::pdo()->prepare($sql);
+        $st->execute();
+        $results = [];
+        while ($row = $st->fetch()) {
+            $results[$row['name']] = $row['description'];
+        }
+        return $results;
+    }
+
+    // Update location description only (for import updates)
+    public static function updateLocationDescription(UserContext $ctx, int $id, string $description): bool {
+        self::assertLoggedIn($ctx);
+        
+        $description = self::str($description);
+        
+        $st = self::pdo()->prepare('UPDATE locations SET description = ? WHERE id = ?');
+        $ok = $st->execute([$description, $id]);
+        
+        if ($ok) {
+            self::log('location.update_description', $id, ['description' => $description]);
+        }
+        
+        return $ok;
+    }
 }
