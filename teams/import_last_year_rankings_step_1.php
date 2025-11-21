@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // Store file in temporary location
         $uploadedFile = $_FILES['csv_file'];
-        $tempFilePath = CsvImportHelper::saveTempFile($uploadedFile);
+        $tempFilePath = CsvImportHelper::saveUploadedFile($uploadedFile);
         
         // Store import data in session
         $_SESSION['last_year_rankings_import'] = [
