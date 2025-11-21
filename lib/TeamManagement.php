@@ -156,4 +156,48 @@ class TeamManagement {
         
         return $ok;
     }
+
+    // === Import-specific methods ===
+
+    // Find team by name (for duplicate detection during import)
+    public static function findByName(string $name): ?array {
+        $name = self::str($name);
+        $st = self::pdo()->prepare('SELECT t.*, d.name as division_name FROM teams t INNER JOIN divisions d ON t.division_id = d.id WHERE t.name = ? LIMIT 1');
+        $st->execute([$name]);
+        $row = $st->fetch();
+        return $row ?: null;
+    }
+
+    // Find division by name (for looking up division during import)
+    public static function findDivisionByName(string $name): ?array {
+        $name = self::str($name);
+        $st = self::pdo()->prepare('SELECT * FROM divisions WHERE name = ? LIMIT 1');
+        $st->execute([$name]);
+        $row = $st->fetch();
+        return $row ?: null;
+    }
+
+    // Get all existing team names for batch duplicate checking
+    public static function getAllTeamNames(): array {
+        $sql = 'SELECT t.name, d.name as division_name FROM teams t INNER JOIN divisions d ON t.division_id = d.id';
+        $st = self::pdo()->prepare($sql);
+        $st->execute();
+        $results = [];
+        while ($row = $st->fetch()) {
+            $results[$row['name']] = $row['division_name'];
+        }
+        return $results;
+    }
+
+    // Get all division names for validation
+    public static function getAllDivisionNames(): array {
+        $sql = 'SELECT name FROM divisions ORDER BY name';
+        $st = self::pdo()->prepare($sql);
+        $st->execute();
+        $results = [];
+        while ($row = $st->fetch()) {
+            $results[] = $row['name'];
+        }
+        return $results;
+    }
 }
