@@ -106,6 +106,19 @@ CREATE TABLE divisions (
 
 CREATE INDEX idx_divisions_name ON divisions(name);
 
+-- ===== Teams =====
+CREATE TABLE teams (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  division_id INT NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_teams_division FOREIGN KEY (division_id) REFERENCES divisions(id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+CREATE INDEX idx_teams_division_id ON teams(division_id);
+CREATE INDEX idx_teams_name ON teams(name);
+
 -- Optional: seed an admin user (update email and password hash, then remove)
 INSERT INTO users (first_name,last_name,email,password_hash,is_admin,email_verified_at)
 VALUES ('Jeff','Millman','millman.jeffry@gmail.com','$2y$10$9xH7Jq4v3o6s9k3y8i4rVOyWb0yBYZ5rW.0f9pZ.gG9K6l7lS6b2S',1,NOW());
