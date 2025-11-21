@@ -28,7 +28,10 @@ header_html('Divisions');
 
 <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
   <h2>Divisions</h2>
-  <a class="button" href="/divisions/add.php">Add</a>
+  <div style="display:flex;gap:8px;">
+    <a class="button" href="/divisions/import_step_1.php">Import</a>
+    <a class="button" href="/divisions/add.php">Add</a>
+  </div>
 </div>
 
 <div class="card">

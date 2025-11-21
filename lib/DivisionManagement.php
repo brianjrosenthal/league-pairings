@@ -143,4 +143,22 @@ class DivisionManagement {
         
         return $ok;
     }
+
+    // Check if division name exists (case-insensitive)
+    public static function isDuplicateName(string $name): bool {
+        $name = self::str($name);
+        if ($name === '') return false;
+        
+        $st = self::pdo()->prepare('SELECT 1 FROM divisions WHERE LOWER(name) = LOWER(?) LIMIT 1');
+        $st->execute([$name]);
+        return (bool)$st->fetchColumn();
+    }
+
+    // Get all existing division names (for duplicate checking during import)
+    public static function getAllDivisionNames(): array {
+        $st = self::pdo()->prepare('SELECT LOWER(name) as name_lower FROM divisions');
+        $st->execute();
+        $results = $st->fetchAll();
+        return array_column($results, 'name_lower');
+    }
 }
