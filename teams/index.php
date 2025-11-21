@@ -28,6 +28,15 @@ header_html('Teams');
 <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
   <h2>Teams</h2>
   <div style="display:flex;gap:8px;">
+    <?php if (!empty($teams) && $me['is_admin']): ?>
+      <form method="post" action="/teams/delete_all_teams_eval.php" style="display:inline;margin:0;" 
+            onsubmit="return confirm('Are you sure you want to delete ALL teams? This will permanently delete all teams, their availability records, and previous games. This action cannot be undone.');">
+        <input type="hidden" name="csrf" value="<?=h(csrf_token())?>">
+        <button type="submit" class="button" style="background:#d32f2f;color:white;border:none;cursor:pointer;">
+          Delete All Teams
+        </button>
+      </form>
+    <?php endif; ?>
     <a class="button" href="/teams/import_availability_step_1.php">Import Team Availability</a>
     <a class="button" href="/teams/import_step_1.php">Import</a>
     <a class="button" href="/teams/add.php">Add</a>

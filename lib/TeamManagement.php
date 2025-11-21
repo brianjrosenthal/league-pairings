@@ -200,4 +200,26 @@ class TeamManagement {
         }
         return $results;
     }
+
+    // Delete all teams (and cascading deletes team_availability and previous_games)
+    public static function deleteAllTeams(UserContext $ctx): int {
+        self::assertLoggedIn($ctx);
+        
+        // Get count before deletion for logging
+        $st = self::pdo()->prepare('SELECT COUNT(*) FROM teams');
+        $st->execute();
+        $count = (int)$st->fetchColumn();
+        
+        if ($count === 0) {
+            return 0;
+        }
+        
+        // Delete all teams (CASCADE will handle team_availability and previous_games)
+        $st = self::pdo()->prepare('DELETE FROM teams');
+        $st->execute();
+        
+        self::log('teams.delete_all', null, ['count' => $count]);
+        
+        return $count;
+    }
 }
