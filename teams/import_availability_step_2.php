@@ -40,7 +40,9 @@ try {
     // Find and parse availability columns
     $availabilityColumns = [];
     foreach ($csvHeaders as $header) {
-        if (stripos($header, 'Please select your team\'s availability for each possible game date') === 0) {
+        // Use preg_match to handle stylized quotes (') vs straight quotes (')
+        // Match "Please select your team.s availability" where . is any character
+        if (preg_match('/^Please select your team.s availability for each possible game date/i', $header)) {
             // Extract date and modifier from column name
             // Pattern: [Day Month DD, YYYY - MODIFIER]
             // Examples: [Tue Jan 27, 2026 - 7:00 PM] or [Sun Jan 25, 2026 - AM]
@@ -134,7 +136,7 @@ header_html('Import Team Availability - Step 2');
       <select name="team_column" required>
         <option value="">-- Select Column --</option>
         <?php foreach ($csvHeaders as $header): ?>
-          <?php if (stripos($header, 'Please select your team\'s availability') !== 0): ?>
+          <?php if (!preg_match('/^Please select your team.s availability/i', $header)): ?>
             <option value="<?= h($header) ?>" <?= ($header === $defaultTeamColumn) ? 'selected' : '' ?>><?= h($header) ?></option>
           <?php endif; ?>
         <?php endforeach; ?>
@@ -146,7 +148,7 @@ header_html('Import Team Availability - Step 2');
       <select name="division_column" required>
         <option value="">-- Select Column --</option>
         <?php foreach ($csvHeaders as $header): ?>
-          <?php if (stripos($header, 'Please select your team\'s availability') !== 0): ?>
+          <?php if (!preg_match('/^Please select your team.s availability/i', $header)): ?>
             <option value="<?= h($header) ?>" <?= ($header === $defaultDivisionColumn) ? 'selected' : '' ?>><?= h($header) ?></option>
           <?php endif; ?>
         <?php endforeach; ?>
