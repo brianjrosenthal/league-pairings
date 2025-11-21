@@ -50,6 +50,10 @@ class PreviousGamesManagement {
         if ($team1Score < 0 || $team2Score < 0) {
             throw new InvalidArgumentException('Scores must be non-negative integers.');
         }
+        
+        if ($team1Score === $team2Score) {
+            throw new InvalidArgumentException('Tie games are not allowed. Teams must have different scores.');
+        }
 
         $st = self::pdo()->prepare(
             "INSERT INTO previous_games (date, team_1_id, team_2_id, team_1_score, team_2_score) 
@@ -121,6 +125,10 @@ class PreviousGamesManagement {
         
         if ($team1Score < 0 || $team2Score < 0) {
             throw new InvalidArgumentException('Scores must be non-negative integers.');
+        }
+        
+        if ($team1Score === $team2Score) {
+            throw new InvalidArgumentException('Tie games are not allowed. Teams must have different scores.');
         }
 
         $st = self::pdo()->prepare(
