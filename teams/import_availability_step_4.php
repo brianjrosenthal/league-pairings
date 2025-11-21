@@ -33,6 +33,16 @@ $details = [];
 try {
     $ctx = UserContext::getLoggedInUserContext();
     
+    // Load all timeslots for reference
+    $allTimeslots = TimeslotManagement::listTimeslots();
+    $timeslotsById = [];
+    foreach ($allTimeslots as $ts) {
+        $timeslotsById[(int)$ts['id']] = [
+            'date' => $ts['date'],
+            'modifier' => $ts['modifier']
+        ];
+    }
+    
     // Process each team
     foreach ($previewData as $item) {
         if ($item['has_error']) {
@@ -56,7 +66,12 @@ try {
                         // Check if already exists before adding
                         if (!TeamAvailabilityManagement::isAvailable($teamId, $timeslotId)) {
                             TeamAvailabilityManagement::addAvailability($ctx, $teamId, $timeslotId);
-                            $teamDetails['added'][] = $timeslotId;
+                            $tsInfo = $timeslotsById[$timeslotId] ?? ['date' => 'unknown', 'modifier' => 'unknown'];
+                            $teamDetails['added'][] = [
+                                'id' => $timeslotId,
+                                'date' => $tsInfo['date'],
+                                'modifier' => $tsInfo['modifier']
+                            ];
                             $addedCount++;
                         }
                     } catch (Exception $e) {
@@ -73,7 +88,12 @@ try {
                         // Check if exists before removing
                         if (TeamAvailabilityManagement::isAvailable($teamId, $timeslotId)) {
                             TeamAvailabilityManagement::removeAvailability($ctx, $teamId, $timeslotId);
-                            $teamDetails['removed'][] = $timeslotId;
+                            $tsInfo = $timeslotsById[$timeslotId] ?? ['date' => 'unknown', 'modifier' => 'unknown'];
+                            $teamDetails['removed'][] = [
+                                'id' => $timeslotId,
+                                'date' => $tsInfo['date'],
+                                'modifier' => $tsInfo['modifier']
+                            ];
                             $removedCount++;
                         }
                     } catch (Exception $e) {
@@ -130,16 +150,36 @@ header_html('Import Team Availability - Step 4');
         
         <?php if (!empty($teamDetail['added'])): ?>
           <p style="margin:4px 0;">
-            <strong style="color:#388e3c;">✓ Added <?= count($teamDetail['added']) ?> availability record(s)</strong>
-            <span class="small" style="color:#666;"> (Timeslot IDs: <?= implode(', ', $teamDetail['added']) ?>)</span>
+            <strong style="color:#388e3c;">✓ Added <?= count($teamDetail['added']) ?> availability record(s):</strong>
           </p>
+          <ul style="margin:4px 0 12px 20px;font-size:0.9em;">
+            <?php foreach ($teamDetail['added'] as $ts): ?>
+              <li>
+                ID: <?= (int)$ts['id'] ?> - 
+                <strong><?= h($ts['date']) ?></strong>
+                <?php if (!empty($ts['modifier'])): ?>
+                  (<?= h($ts['modifier']) ?>)
+                <?php endif; ?>
+              </li>
+            <?php endforeach; ?>
+          </ul>
         <?php endif; ?>
         
         <?php if (!empty($teamDetail['removed'])): ?>
           <p style="margin:4px 0;">
-            <strong style="color:#f57c00;">⚠️ Removed <?= count($teamDetail['removed']) ?> availability record(s)</strong>
-            <span class="small" style="color:#666;"> (Timeslot IDs: <?= implode(', ', $teamDetail['removed']) ?>)</span>
+            <strong style="color:#f57c00;">⚠️ Removed <?= count($teamDetail['removed']) ?> availability record(s):</strong>
           </p>
+          <ul style="margin:4px 0 12px 20px;font-size:0.9em;">
+            <?php foreach ($teamDetail['removed'] as $ts): ?>
+              <li>
+                ID: <?= (int)$ts['id'] ?> - 
+                <strong><?= h($ts['date']) ?></strong>
+                <?php if (!empty($ts['modifier'])): ?>
+                  (<?= h($ts['modifier']) ?>)
+                <?php endif; ?>
+              </li>
+            <?php endforeach; ?>
+          </ul>
         <?php endif; ?>
         
         <?php if (!empty($teamDetail['errors'])): ?>

@@ -255,17 +255,30 @@ header_html('Import Team Availability - Step 3');
 <?php endif; ?>
 
 <div class="card">
-  <form method="post" action="/teams/import_availability_step_4.php">
+  <form method="post" action="/teams/import_availability_step_4.php" onsubmit="return handleImportSubmit(this);">
     <input type="hidden" name="csrf" value="<?=h(csrf_token())?>">
     <input type="hidden" name="preview_data" value="<?=h(json_encode($previewData))?>">
     <div class="actions">
       <?php if (!$hasErrors): ?>
-        <button class="primary" type="submit">Commit Import</button>
+        <button class="primary" type="submit" id="commitImportBtn">Commit Import</button>
       <?php endif; ?>
       <a class="button" href="/teams/import_availability_step_2.php">← Back</a>
       <a class="button" href="/teams/">Cancel</a>
     </div>
   </form>
 </div>
+
+<script>
+function handleImportSubmit(form) {
+  const btn = document.getElementById('commitImportBtn');
+  if (btn.disabled) {
+    return false; // Already submitting
+  }
+  btn.disabled = true;
+  btn.textContent = 'Processing...';
+  btn.style.opacity = '0.6';
+  return true;
+}
+</script>
 
 <?php footer_html(); ?>
