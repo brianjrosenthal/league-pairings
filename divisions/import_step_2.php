@@ -20,9 +20,19 @@ $err = null;
 try {
     // Get CSV headers
     $csvHeaders = CsvImportHelper::getCSVHeaders($filePath, $delimiter);
+    
+    // Auto-detect "name" column (case-insensitive)
+    $defaultNameColumn = '';
+    foreach ($csvHeaders as $header) {
+        if (strtolower($header) === 'name') {
+            $defaultNameColumn = $header;
+            break;
+        }
+    }
 } catch (Exception $e) {
     $err = $e->getMessage();
     $csvHeaders = [];
+    $defaultNameColumn = '';
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -77,7 +87,7 @@ header_html('Import Divisions - Step 2');
       <select name="name_column" required>
         <option value="">-- Select Column --</option>
         <?php foreach ($csvHeaders as $header): ?>
-          <option value="<?= h($header) ?>"><?= h($header) ?></option>
+          <option value="<?= h($header) ?>" <?= ($header === $defaultNameColumn) ? 'selected' : '' ?>><?= h($header) ?></option>
         <?php endforeach; ?>
       </select>
     </label>
