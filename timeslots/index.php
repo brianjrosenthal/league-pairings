@@ -48,6 +48,7 @@ header_html('Timeslots');
             <td><?= h(TimeslotManagement::formatDate($timeslot['date'])) ?></td>
             <td><?= h($timeslot['modifier'] ?? '') ?></td>
             <td class="small">
+              <a class="button small" href="/timeslots/locations.php?id=<?= (int)$timeslot['id'] ?>">Locations</a>
               <a class="button small" href="/timeslots/edit.php?id=<?= (int)$timeslot['id'] ?>">Edit</a>
             </td>
           </tr>

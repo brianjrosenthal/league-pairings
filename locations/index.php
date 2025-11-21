@@ -48,6 +48,7 @@ header_html('Locations');
             <td><?= h($location['name'] ?? '') ?></td>
             <td><?= h($location['description'] ?? '') ?></td>
             <td class="small">
+              <a class="button small" href="/locations/availability.php?id=<?= (int)$location['id'] ?>">Availability</a>
               <a class="button small" href="/locations/edit.php?id=<?= (int)$location['id'] ?>">Edit</a>
             </td>
           </tr>
