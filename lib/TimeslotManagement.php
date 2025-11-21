@@ -161,4 +161,37 @@ class TimeslotManagement {
         }
         return $date;
     }
+
+    // === Import-specific methods ===
+
+    // Find timeslot by date and modifier
+    public static function findByDateAndModifier(string $date, string $modifier): ?array {
+        $date = self::str($date);
+        $modifier = self::str($modifier);
+        
+        $st = self::pdo()->prepare('SELECT * FROM timeslots WHERE date = ? AND modifier = ? LIMIT 1');
+        $st->execute([$date, $modifier]);
+        $row = $st->fetch();
+        return $row ?: null;
+    }
+
+    // Find or create timeslot (for import)
+    public static function findOrCreateTimeslot(UserContext $ctx, string $date, string $modifier): int {
+        $date = self::str($date);
+        $modifier = self::str($modifier);
+        
+        // Validate date format
+        if (!self::isValidDate($date)) {
+            throw new InvalidArgumentException('Invalid date format.');
+        }
+        
+        // Try to find existing timeslot
+        $existing = self::findByDateAndModifier($date, $modifier);
+        if ($existing) {
+            return (int)$existing['id'];
+        }
+        
+        // Create new timeslot
+        return self::createTimeslot($ctx, $date, $modifier);
+    }
 }

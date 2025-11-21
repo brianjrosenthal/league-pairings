@@ -139,4 +139,27 @@ class LocationAvailabilityManagement {
         $st->execute([$timeslotId]);
         return $st->fetchAll();
     }
+
+    // === Import-specific methods ===
+
+    // Get all existing location-timeslot combinations for duplicate checking
+    public static function getAllLocationTimeslots(): array {
+        $sql = 'SELECT la.location_id, la.timeslot_id, l.name as location_name, t.date, t.modifier
+                FROM location_availability la
+                INNER JOIN locations l ON la.location_id = l.id
+                INNER JOIN timeslots t ON la.timeslot_id = t.id';
+        
+        $st = self::pdo()->prepare($sql);
+        $st->execute();
+        
+        $results = [];
+        while ($row = $st->fetch()) {
+            $key = $row['location_name'] . '|' . $row['date'] . '|' . $row['modifier'];
+            $results[$key] = [
+                'location_id' => $row['location_id'],
+                'timeslot_id' => $row['timeslot_id']
+            ];
+        }
+        return $results;
+    }
 }
