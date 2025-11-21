@@ -92,7 +92,7 @@ class TeamAvailabilityManagement {
                 FROM timeslots t 
                 INNER JOIN team_availability ta ON t.id = ta.timeslot_id 
                 WHERE ta.team_id = ? 
-                ORDER BY t.date DESC, t.modifier';
+                ORDER BY t.date ASC, t.modifier';
 
         $st = self::pdo()->prepare($sql);
         $st->execute([$teamId]);
