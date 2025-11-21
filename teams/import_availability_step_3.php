@@ -345,7 +345,14 @@ if (!empty($teamsWithDebugInfo)):
 <div class="card">
   <form method="post" action="/teams/import_availability_step_4.php" onsubmit="return handleImportSubmit(this);">
     <input type="hidden" name="csrf" value="<?=h(csrf_token())?>">
-    <input type="hidden" name="preview_data" value="<?=h(json_encode($previewData))?>">
+    <?php
+    // Remove debug_info from preview data before passing to step 4
+    $previewDataForStep4 = array_map(function($item) {
+        unset($item['debug_info']);
+        return $item;
+    }, $previewData);
+    ?>
+    <input type="hidden" name="preview_data" value="<?=h(json_encode($previewDataForStep4))?>">
     <div class="actions">
       <?php if (!$hasErrors): ?>
         <button class="primary" type="submit" id="commitImportBtn">Commit Import</button>
