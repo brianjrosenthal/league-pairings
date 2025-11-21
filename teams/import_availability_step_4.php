@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../partials.php';
 require_once __DIR__ . '/../lib/CsvImportHelper.php';
 require_once __DIR__ . '/../lib/TeamAvailabilityManagement.php';
+require_once __DIR__ . '/../lib/TimeslotManagement.php';
 Application::init();
 require_login();
 
