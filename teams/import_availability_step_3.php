@@ -211,9 +211,9 @@ header_html('Import Team Availability - Step 3');
 
 <div class="card">
   <p><strong>File:</strong> <?= h($importData['original_filename']) ?></p>
-  <p><strong>Total teams:</strong> <?= count($previewData) ?></p>
+  <p><strong>Total lines on import:</strong> <?= count($previewData) ?></p>
   <p><strong>Teams with errors:</strong> <?= count(array_filter($previewData, fn($item) => $item['has_error'])) ?></p>
-  <p><strong>Valid teams:</strong> <?= count(array_filter($previewData, fn($item) => !$item['has_error'])) ?></p>
+  <p><strong>Valid lines on import:</strong> <?= count(array_filter($previewData, fn($item) => !$item['has_error'])) ?></p>
 </div>
 
 <?php if ($hasErrors): ?>
@@ -244,8 +244,8 @@ header_html('Import Team Availability - Step 3');
         <th>Line</th>
         <th>Team</th>
         <th>Division</th>
-        <th>Will Add</th>
-        <th>Will Remove</th>
+        <th>Available</th>
+        <th>Not Available</th>
         <th>Status</th>
       </tr>
     </thead>
