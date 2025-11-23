@@ -1,15 +1,20 @@
 """
 True Multi-Phase Scheduler
 
-Phase 1: Coverage Optimization (OR-Tools CP-SAT)
-- Ensures every team plays at least 1 game
-- Uses precise optimization
-- Allocates ~40% of timeout
+Phase 1A: Pure Coverage (OR-Tools CP-SAT)
+- Maximizes number of teams that play (ignores weights)
+- Pure coverage optimization
+- Allocates ~15% of timeout
+
+Phase 1B: Optimal Remaining Coverage (OR-Tools CP-SAT)
+- Schedules remaining unscheduled teams optimally
+- Uses weights for quality
+- Allocates ~15% of timeout
 
 Phase 2: Greedy Capacity Filling
 - Fills remaining capacity up to 3 games/week, 1 game/day
 - Fast greedy algorithm
-- Uses remaining timeout
+- Allocates ~70% of timeout
 """
 
 from typing import Dict, List, Set, Tuple
@@ -52,7 +57,7 @@ class TrueMultiPhaseScheduler:
     
     def schedule(self, feasible_games: List[Dict]) -> List[Dict]:
         """
-        Generate schedule using two-phase approach.
+        Generate schedule using three-phase approach.
         
         Args:
             feasible_games: List of feasible games (one per team pairing)
@@ -65,39 +70,47 @@ class TrueMultiPhaseScheduler:
         
         logger.info(f"True Multi-Phase: Starting with {len(feasible_games)} feasible games")
         
-        # Phase 1: Coverage optimization (40% of timeout)
-        phase1_timeout = int(self.timeout * 0.4)
-        logger.info(f"=== PHASE 1: Coverage Optimization ({phase1_timeout}s) ===")
-        phase1_games = self._phase1_coverage_optimization(feasible_games, phase1_timeout)
+        # Phase 1A: Pure coverage optimization (15% of timeout)
+        phase1a_timeout = int(self.timeout * 0.15)
+        logger.info(f"=== PHASE 1A: Pure Coverage ({phase1a_timeout}s) ===")
+        phase1a_games = self._phase1a_pure_coverage(feasible_games, phase1a_timeout)
         
-        logger.info(f"Phase 1 complete: {len(phase1_games)} games scheduled")
+        logger.info(f"Phase 1A complete: {len(phase1a_games)} games scheduled")
         
-        # Phase 2: Greedy capacity filling (remaining timeout)
-        phase2_timeout = self.timeout - phase1_timeout
+        # Phase 1B: Optimal remaining coverage (15% of timeout)
+        phase1b_timeout = int(self.timeout * 0.15)
+        logger.info(f"=== PHASE 1B: Optimal Remaining Coverage ({phase1b_timeout}s) ===")
+        phase1b_games = self._phase1b_optimal_remaining(feasible_games, phase1b_timeout)
+        
+        logger.info(f"Phase 1B complete: {len(phase1b_games)} additional games scheduled")
+        
+        # Phase 2: Greedy capacity filling (70% of timeout)
+        phase2_timeout = self.timeout - phase1a_timeout - phase1b_timeout
         logger.info(f"=== PHASE 2: Greedy Capacity Filling ({phase2_timeout}s) ===")
         phase2_games = self._phase2_greedy_filling(feasible_games, phase2_timeout)
         
         logger.info(f"Phase 2 complete: {len(phase2_games)} additional games scheduled")
         
-        total_games = phase1_games + phase2_games
+        total_games = phase1a_games + phase1b_games + phase2_games
         logger.info(f"Total games scheduled: {len(total_games)}")
         
         return total_games
     
-    def _phase1_coverage_optimization(
+    def _phase1a_pure_coverage(
         self, 
         feasible_games: List[Dict],
         timeout: int
     ) -> List[Dict]:
         """
-        Phase 1: Ensure every team plays at least once using OR-Tools.
+        Phase 1A: Pure coverage optimization - maximize teams that play.
+        Ignores all game weights, only cares about covering teams.
         
         Args:
             feasible_games: All feasible games
             timeout: Time limit for this phase
             
         Returns:
-            Games selected for coverage
+            Games selected for pure coverage
         """
         try:
             from ortools.sat.python import cp_model
@@ -157,18 +170,12 @@ class TrueMultiPhaseScheduler:
             model.Add(sum(game_vars[i] for i in game_indices) >= 1).OnlyEnforceIf(coverage_var)
             model.Add(sum(game_vars[i] for i in game_indices) == 0).OnlyEnforceIf(coverage_var.Not())
         
-        # Maximize: coverage + game weights
+        # Maximize: ONLY team coverage (no weights!)
         objective_terms = []
         
-        # High priority: team coverage
+        # Pure coverage: only count teams that play
         for coverage_var in team_coverage.values():
-            objective_terms.append(10000 * coverage_var)
-        
-        # Secondary: game quality
-        for i, game in enumerate(feasible_games):
-            weight = game.get('weight', 0)
-            scaled_weight = int(weight * 1000)
-            objective_terms.append(scaled_weight * game_vars[i])
+            objective_terms.append(coverage_var)
         
         model.Maximize(sum(objective_terms))
         
@@ -180,7 +187,7 @@ class TrueMultiPhaseScheduler:
         status = solver.Solve(model)
         
         if status not in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
-            logger.warning(f"Phase 1 failed with status: {solver.StatusName(status)}")
+            logger.warning(f"Phase 1A failed with status: {solver.StatusName(status)}")
             return []
         
         # Extract solution
@@ -210,6 +217,166 @@ class TrueMultiPhaseScheduler:
                     selected_games.append(game_copy)
                     
                     # Track usage
+                    self.used_tsls.add(assigned_tsl['tsl_id'])
+                    self._track_game(game_copy)
+        
+        return selected_games
+    
+    def _phase1b_optimal_remaining(
+        self,
+        feasible_games: List[Dict],
+        timeout: int
+    ) -> List[Dict]:
+        """
+        Phase 1B: Optimal remaining coverage - schedule unscheduled teams.
+        Only considers games involving teams not yet scheduled.
+        Uses weights for quality.
+        
+        Args:
+            feasible_games: All feasible games
+            timeout: Time limit for this phase
+            
+        Returns:
+            Games selected for remaining coverage
+        """
+        try:
+            from ortools.sat.python import cp_model
+        except ImportError:
+            raise RuntimeError("OR-Tools not installed")
+        
+        # Determine which teams still need scheduling
+        scheduled_teams = set()
+        for game in self.scheduled_games:
+            scheduled_teams.add(game['teamA'])
+            scheduled_teams.add(game['teamB'])
+        
+        # Filter to only games with at least one unscheduled team
+        remaining_games = []
+        for game in feasible_games:
+            team_a = game['teamA']
+            team_b = game['teamB']
+            
+            # Only consider if at least one team hasn't played
+            if team_a not in scheduled_teams or team_b not in scheduled_teams:
+                remaining_games.append(game)
+        
+        if not remaining_games:
+            logger.info("Phase 1B: All teams already scheduled")
+            return []
+        
+        logger.info(f"Phase 1B: Considering {len(remaining_games)} games for {len([t for g in remaining_games for t in [g['teamA'], g['teamB']] if t not in scheduled_teams])} unscheduled teams")
+        
+        model = cp_model.CpModel()
+        
+        # Decision variables
+        game_vars = {}
+        for i, game in enumerate(remaining_games):
+            game_vars[i] = model.NewBoolVar(f'game_{i}')
+        
+        # Constraint: Each team plays at most once in Phase 1B
+        team_games = defaultdict(list)
+        for i, game in enumerate(remaining_games):
+            team_games[game['teamA']].append(i)
+            team_games[game['teamB']].append(i)
+        
+        for team_id, game_indices in team_games.items():
+            model.Add(sum(game_vars[i] for i in game_indices) <= 1)
+        
+        # TSL assignment
+        tsl_assignment = {}
+        tsl_usage = defaultdict(list)
+        
+        for i, game in enumerate(remaining_games):
+            available_tsls = game.get('available_tsls', [game])
+            
+            # Filter out TSLs already used
+            available_tsls = [tsl for tsl in available_tsls if tsl['tsl_id'] not in self.used_tsls]
+            
+            if not available_tsls:
+                continue
+            
+            tsl_vars = {}
+            for tsl in available_tsls:
+                tsl_id = tsl['tsl_id']
+                var_name = f'game_{i}_tsl_{tsl_id}'
+                tsl_var = model.NewBoolVar(var_name)
+                tsl_vars[tsl_id] = tsl_var
+                tsl_usage[tsl_id].append((i, tsl_var))
+            
+            tsl_assignment[i] = (tsl_vars, available_tsls)
+            
+            model.Add(sum(tsl_vars.values()) == 1).OnlyEnforceIf(game_vars[i])
+            model.Add(sum(tsl_vars.values()) == 0).OnlyEnforceIf(game_vars[i].Not())
+        
+        # Constraint: Each TSL used at most once
+        for tsl_id, assignments in tsl_usage.items():
+            model.Add(sum(var for _, var in assignments) <= 1)
+        
+        # Objective: Coverage of unscheduled teams + game quality
+        team_coverage = {}
+        for team_id, game_indices in team_games.items():
+            if team_id not in scheduled_teams:
+                coverage_var = model.NewBoolVar(f'coverage_t{team_id}')
+                team_coverage[team_id] = coverage_var
+                
+                model.Add(sum(game_vars[i] for i in game_indices) >= 1).OnlyEnforceIf(coverage_var)
+                model.Add(sum(game_vars[i] for i in game_indices) == 0).OnlyEnforceIf(coverage_var.Not())
+        
+        objective_terms = []
+        
+        # High priority: unscheduled team coverage
+        for coverage_var in team_coverage.values():
+            objective_terms.append(10000 * coverage_var)
+        
+        # Secondary: game quality
+        for i, game in enumerate(remaining_games):
+            weight = game.get('weight', 0)
+            scaled_weight = int(weight * 1000)
+            objective_terms.append(scaled_weight * game_vars[i])
+        
+        model.Maximize(sum(objective_terms))
+        
+        # Solve
+        solver = cp_model.CpSolver()
+        solver.parameters.max_time_in_seconds = timeout
+        solver.parameters.log_search_progress = False
+        
+        status = solver.Solve(model)
+        
+        if status not in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
+            logger.warning(f"Phase 1B failed with status: {solver.StatusName(status)}")
+            return []
+        
+        # Extract solution
+        selected_games = []
+        for i, game in enumerate(remaining_games):
+            if solver.Value(game_vars[i]) == 1:
+                if i not in tsl_assignment:
+                    continue
+                
+                tsl_vars, available_tsls = tsl_assignment[i]
+                assigned_tsl = None
+                
+                for tsl in available_tsls:
+                    tsl_id = tsl['tsl_id']
+                    if tsl_id in tsl_vars and solver.Value(tsl_vars[tsl_id]) == 1:
+                        assigned_tsl = tsl
+                        break
+                
+                if assigned_tsl:
+                    # Check if we can still schedule (constraints may have changed)
+                    if not self._can_schedule_game(game['teamA'], game['teamB'], assigned_tsl['timeslot_id']):
+                        continue
+                    
+                    game_copy = game.copy()
+                    game_copy['timeslot_id'] = assigned_tsl['timeslot_id']
+                    game_copy['location_id'] = assigned_tsl['location_id']
+                    game_copy['location_name'] = assigned_tsl['location_name']
+                    game_copy['tsl_id'] = assigned_tsl['tsl_id']
+                    game_copy['date'] = assigned_tsl['date']
+                    game_copy['modifier'] = assigned_tsl['modifier']
+                    
+                    selected_games.append(game_copy)
                     self.used_tsls.add(assigned_tsl['tsl_id'])
                     self._track_game(game_copy)
         
