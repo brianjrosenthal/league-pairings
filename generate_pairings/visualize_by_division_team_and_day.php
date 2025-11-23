@@ -81,7 +81,7 @@ header_html('Schedule Visualization');
         $teamAId = $game['team_a_id'];
         $teamBId = $game['team_b_id'];
         $location = $game['location_name'] ?? '';
-        $modifier = $game['modifier'] ?? '';
+        $modifier = $game['time_modifier'] ?? '';
         
         // Determine week (Sunday-Saturday)
         $timestamp = strtotime($date);
