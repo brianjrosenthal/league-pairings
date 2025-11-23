@@ -118,6 +118,9 @@ class TrueMultiPhaseScheduler:
             
             logger.info(f"Phase 1B: Scheduled {len(phase1b_games)} additional games")
             
+            # Diagnose unscheduled teams after Phase 1A+1B
+            self._diagnose_unscheduled_teams(week_num, week_games)
+            
             # Phase 2: Greedy filling (70% of week time)
             phase2_timeout = int(time_per_week * 0.70)
             logger.info(f"Phase 2: Greedy Filling ({phase2_timeout}s)")
@@ -662,3 +665,168 @@ class TrueMultiPhaseScheduler:
         # This ensures Week 2 knows which teams got games in Week 1
         self.games_this_run[team_a] += 1
         self.games_this_run[team_b] += 1
+    
+    def _diagnose_unscheduled_teams(self, week_num: int, feasible_games: List[Dict]):
+        """
+        Diagnose why teams didn't get scheduled in Phase 1A+1B.
+        
+        Args:
+            week_num: Current week number
+            feasible_games: All feasible games for this week
+        """
+        import sys
+        
+        # Get all teams that should have games this week
+        all_teams = set()
+        for game in feasible_games:
+            all_teams.add(game['teamA'])
+            all_teams.add(game['teamB'])
+        
+        # Get teams that were scheduled this week
+        scheduled_this_week = set()
+        for game in self.scheduled_games:
+            if game['timeslot_id'] in self.model.week_mapping:
+                game_week = self.model.week_mapping[game['timeslot_id']][0]
+                if game_week == week_num:
+                    scheduled_this_week.add(game['teamA'])
+                    scheduled_this_week.add(game['teamB'])
+        
+        unscheduled = all_teams - scheduled_this_week
+        
+        if not unscheduled:
+            sys.stderr.write(f"\n✓ Week {week_num}: All teams scheduled in Phase 1A+1B\n")
+            sys.stderr.flush()
+            return
+        
+        sys.stderr.write(f"\n⚠️  Week {week_num} Diagnostic: {len(unscheduled)} teams unscheduled after Phase 1A+1B\n")
+        sys.stderr.write("=" * 80 + "\n")
+        sys.stderr.flush()
+        
+        for team_id in sorted(unscheduled):
+            team_name = self.model.get_team_name(team_id)
+            sys.stderr.write(f"\nTeam {team_id} ({team_name}):\n")
+            
+            # Get this team's feasible games
+            team_games = [g for g in feasible_games if g['teamA'] == team_id or g['teamB'] == team_id]
+            
+            if not team_games:
+                sys.stderr.write("  ❌ NO FEASIBLE GAMES\n")
+                sys.stderr.write("     - Team has no opponents available at overlapping times\n")
+                sys.stderr.flush()
+                continue
+            
+            # Get all TSL options for this team
+            team_tsls = set()
+            team_tsl_details = []
+            for game in team_games:
+                for tsl in game.get('available_tsls', [game]):
+                    team_tsls.add(tsl['tsl_id'])
+                    team_tsl_details.append({
+                        'tsl_id': tsl['tsl_id'],
+                        'date': tsl['date'],
+                        'modifier': tsl['modifier'],
+                        'location': tsl['location_name'],
+                        'opponent': game['teamB'] if game['teamA'] == team_id else game['teamA']
+                    })
+            
+            # Check various reasons
+            reasons = []
+            
+            # 1. Check if all TSLs were taken
+            used_tsls = team_tsls & self.used_tsls
+            if len(used_tsls) == len(team_tsls):
+                reasons.append("HIGH TSL DEMAND")
+                sys.stderr.write(f"  🔥 HIGH TSL DEMAND - All {len(team_tsls)} TSL options taken by other teams\n")
+                
+                # Show which teams took these slots
+                competing_teams = defaultdict(list)
+                for game in self.scheduled_games:
+                    if game['tsl_id'] in used_tsls:
+                        game_week = self.model.week_mapping.get(game['timeslot_id'], [None])[0]
+                        if game_week == week_num:
+                            for tsl_detail in team_tsl_details:
+                                if tsl_detail['tsl_id'] == game['tsl_id']:
+                                    competing_teams[game['tsl_id']].append({
+                                        'teams': (game['teamA'], game['teamB']),
+                                        'tsl': tsl_detail
+                                    })
+                
+                sys.stderr.write(f"     TSL utilization by competing teams:\n")
+                for tsl_id in sorted(used_tsls):
+                    if tsl_id in competing_teams:
+                        for comp in competing_teams[tsl_id]:
+                            t1, t2 = comp['teams']
+                            t1_name = self.model.get_team_name(t1)
+                            t2_name = self.model.get_team_name(t2)
+                            tsl_info = comp['tsl']
+                            t1_games = self.games_this_run.get(t1, 0)
+                            t2_games = self.games_this_run.get(t2, 0)
+                            sys.stderr.write(f"       - {tsl_info['date']} {tsl_info['modifier']} at {tsl_info['location']}: "
+                                           f"{t1_name}({t1_games} games) vs {t2_name}({t2_games} games)\n")
+            
+            # 2. Check weekly capacity
+            current_weekly_games = self.team_weekly_games[week_num].get(team_id, 0)
+            if current_weekly_games >= self.max_games_per_week:
+                reasons.append("WEEKLY CAPACITY EXHAUSTED")
+                sys.stderr.write(f"  ⚠️  WEEKLY CAPACITY EXHAUSTED - Already has {current_weekly_games}/{self.max_games_per_week} games this week\n")
+            
+            # 3. Check if team has opponents available
+            opponent_ids = set()
+            for game in team_games:
+                opponent = game['teamB'] if game['teamA'] == team_id else game['teamA']
+                opponent_ids.add(opponent)
+            
+            available_opponents = []
+            for opp_id in opponent_ids:
+                opp_weekly_games = self.team_weekly_games[week_num].get(opp_id, 0)
+                if opp_weekly_games < self.max_games_per_week:
+                    available_opponents.append(opp_id)
+            
+            if not available_opponents:
+                reasons.append("NO AVAILABLE OPPONENTS")
+                sys.stderr.write(f"  ❌ NO AVAILABLE OPPONENTS - All {len(opponent_ids)} potential opponents at weekly capacity\n")
+            
+            # 4. Check cross-week priority
+            team_games_this_run = self.games_this_run.get(team_id, 0)
+            if team_games_this_run > 0:
+                reasons.append("LOWER PRIORITY")
+                sys.stderr.write(f"  📊 LOWER PRIORITY - Has {team_games_this_run} games from previous weeks this run\n")
+                
+                # Show if higher priority teams took their slots
+                higher_priority_count = 0
+                for game in self.scheduled_games:
+                    if game['tsl_id'] in used_tsls:
+                        game_week = self.model.week_mapping.get(game['timeslot_id'], [None])[0]
+                        if game_week == week_num:
+                            t1_priority = self.games_this_run.get(game['teamA'], 0)
+                            t2_priority = self.games_this_run.get(game['teamB'], 0)
+                            if t1_priority < team_games_this_run or t2_priority < team_games_this_run:
+                                higher_priority_count += 1
+                
+                if higher_priority_count > 0:
+                    sys.stderr.write(f"     - {higher_priority_count} of their TSL options taken by higher-priority teams\n")
+            
+            # 5. Check daily limits
+            daily_conflicts = []
+            for tsl_detail in team_tsl_details:
+                date = tsl_detail['date']
+                if date in [self.model.day_mapping.get(ts_id) for ts_id in self.model.day_mapping.keys()]:
+                    daily_games = self.team_daily_games[date].get(team_id, 0)
+                    if daily_games >= self.max_games_per_day:
+                        daily_conflicts.append(date)
+            
+            if daily_conflicts:
+                reasons.append("DAILY LIMIT CONFLICT")
+                sys.stderr.write(f"  🚫 DAILY LIMIT CONFLICT - Already at daily limit on {len(set(daily_conflicts))} days\n")
+            
+            # Summary
+            if not reasons:
+                sys.stderr.write(f"  ⁉️  UNKNOWN REASON - Team has {len(team_games)} feasible games but wasn't scheduled\n")
+                sys.stderr.write(f"     - {len(team_games)} feasible games available\n")
+                sys.stderr.write(f"     - {len(team_tsls)} TSL options ({len(used_tsls)} taken, {len(team_tsls) - len(used_tsls)} free)\n")
+                sys.stderr.write(f"     - {len(opponent_ids)} potential opponents ({len(available_opponents)} available)\n")
+            
+            sys.stderr.flush()
+        
+        sys.stderr.write("=" * 80 + "\n\n")
+        sys.stderr.flush()
