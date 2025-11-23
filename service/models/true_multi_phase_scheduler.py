@@ -683,12 +683,32 @@ class TrueMultiPhaseScheduler:
             week_num = self.model.week_mapping[timeslot_id][0]
             self.team_weekly_games[week_num][team_a] += 1
             self.team_weekly_games[week_num][team_b] += 1
+            
+            # VALIDATION: Check if we're violating weekly constraint
+            if self.team_weekly_games[week_num][team_a] > self.max_games_per_week:
+                logger.error(f"CONSTRAINT VIOLATION: Team {team_a} scheduled for "
+                           f"{self.team_weekly_games[week_num][team_a]} games in week {week_num} "
+                           f"(max={self.max_games_per_week})")
+            if self.team_weekly_games[week_num][team_b] > self.max_games_per_week:
+                logger.error(f"CONSTRAINT VIOLATION: Team {team_b} scheduled for "
+                           f"{self.team_weekly_games[week_num][team_b]} games in week {week_num} "
+                           f"(max={self.max_games_per_week})")
         
         # Track daily game counts
         if timeslot_id in self.model.day_mapping:
             day = self.model.day_mapping[timeslot_id]
             self.team_daily_games[day][team_a] += 1
             self.team_daily_games[day][team_b] += 1
+            
+            # VALIDATION: Check if we're violating daily constraint
+            if self.team_daily_games[day][team_a] > self.max_games_per_day:
+                logger.error(f"CONSTRAINT VIOLATION: Team {team_a} scheduled for "
+                           f"{self.team_daily_games[day][team_a]} games on {day} "
+                           f"(max={self.max_games_per_day})")
+            if self.team_daily_games[day][team_b] > self.max_games_per_day:
+                logger.error(f"CONSTRAINT VIOLATION: Team {team_b} scheduled for "
+                           f"{self.team_daily_games[day][team_b]} games on {day} "
+                           f"(max={self.max_games_per_day})")
         
         # Track games THIS RUN for cross-week memory
         # This ensures Week 2 knows which teams got games in Week 1
@@ -723,6 +743,103 @@ class TrueMultiPhaseScheduler:
         # Decrement games this run
         self.games_this_run[team_a] -= 1
         self.games_this_run[team_b] -= 1
+    
+    def _can_perform_displacement(
+        self,
+        scheduled_game: Dict,
+        displaced_team: int,
+        kept_team: int,
+        unscheduled_team: int,
+        swap_game: Dict,
+        feasible_games: List[Dict],
+        week_num: int
+    ) -> Optional[Tuple[Dict, Dict, Dict]]:
+        """
+        Check if a displacement is viable WITHOUT modifying any state.
+        
+        Returns:
+            Tuple of (swap_game_data, alt_game_data, alt_tsl_data) if viable, None otherwise
+        """
+        tsl_id = scheduled_game['tsl_id']
+        timeslot_id = scheduled_game['timeslot_id']
+        
+        # Simulate untracking: check if we can schedule unscheduled_team vs kept_team
+        # by temporarily reducing the game counts for displaced_team and kept_team
+        week_num_sched = self.model.week_mapping[timeslot_id][0]
+        day_sched = self.model.day_mapping[timeslot_id]
+        
+        # Check if unscheduled_team and kept_team can play at this TSL
+        # (simulating that the old game is removed)
+        unscheduled_week_count = self.team_weekly_games[week_num_sched].get(unscheduled_team, 0)
+        kept_week_count = self.team_weekly_games[week_num_sched].get(kept_team, 0) - 1  # Simulate removal
+        
+        if unscheduled_week_count >= self.max_games_per_week:
+            return None
+        if kept_week_count >= self.max_games_per_week:
+            return None
+        
+        unscheduled_day_count = self.team_daily_games[day_sched].get(unscheduled_team, 0)
+        kept_day_count = self.team_daily_games[day_sched].get(kept_team, 0) - 1  # Simulate removal
+        
+        if unscheduled_day_count >= self.max_games_per_day:
+            return None
+        if kept_day_count >= self.max_games_per_day:
+            return None
+        
+        # Find alternative game for displaced team
+        alternative_games = [
+            g for g in feasible_games
+            if (g['teamA'] == displaced_team or g['teamB'] == displaced_team)
+        ]
+        
+        for alt_game in alternative_games:
+            alt_opponent = alt_game['teamB'] if alt_game['teamA'] == displaced_team else alt_game['teamA']
+            
+            for alt_tsl in alt_game.get('available_tsls', [alt_game]):
+                alt_tsl_id = alt_tsl['tsl_id']
+                alt_timeslot_id = alt_tsl['timeslot_id']
+                
+                # Verify this TSL is in the same week
+                if alt_timeslot_id not in self.model.week_mapping:
+                    continue
+                alt_week = self.model.week_mapping[alt_timeslot_id][0]
+                if alt_week != week_num:
+                    continue
+                
+                # Skip the TSL we're using for the swap
+                if alt_tsl_id == tsl_id:
+                    continue
+                
+                # Skip already used TSLs
+                if alt_tsl_id in self.used_tsls:
+                    continue
+                
+                # Check if displaced_team can schedule with this opponent
+                # (simulating that their old game is removed)
+                displaced_week_count = self.team_weekly_games[alt_week].get(displaced_team, 0) - 1  # Simulate removal
+                alt_opp_week_count = self.team_weekly_games[alt_week].get(alt_opponent, 0)
+                
+                if displaced_week_count >= self.max_games_per_week:
+                    continue
+                if alt_opp_week_count >= self.max_games_per_week:
+                    continue
+                
+                alt_day = self.model.day_mapping.get(alt_timeslot_id)
+                if alt_day is None:
+                    continue
+                
+                displaced_day_count = self.team_daily_games[alt_day].get(displaced_team, 0) - 1  # Simulate removal
+                alt_opp_day_count = self.team_daily_games[alt_day].get(alt_opponent, 0)
+                
+                if displaced_day_count >= self.max_games_per_day:
+                    continue
+                if alt_opp_day_count >= self.max_games_per_day:
+                    continue
+                
+                # Found a viable swap!
+                return (swap_game, alt_game, alt_tsl)
+        
+        return None
     
     def _phase1c_strategic_displacement(
         self,
@@ -783,157 +900,100 @@ class TrueMultiPhaseScheduler:
                 continue
             unscheduled_division = unscheduled_team_data['division_id']
             
-            # Find potential games for this unscheduled team
-            candidate_games = [
-                g for g in feasible_games
-                if g['teamA'] == unscheduled_team or g['teamB'] == unscheduled_team
-            ]
-            
-            if not candidate_games:
-                continue
-            
-            # Try each candidate game
-            for candidate_game in candidate_games:
-                # Check timeout
-                if time.time() - start_time > timeout:
-                    break
+            # Look for a scheduled game this week that we could displace
+            for scheduled_game in list(self.scheduled_games):
+                game_week = self.model.week_mapping.get(scheduled_game['timeslot_id'], [None])[0]
+                if game_week != week_num:
+                    continue
                 
-                opponent = candidate_game['teamB'] if candidate_game['teamA'] == unscheduled_team else candidate_game['teamA']
+                scheduled_team_a = scheduled_game['teamA']
+                scheduled_team_b = scheduled_game['teamB']
                 
-                # Look for a scheduled game this week that we could displace
-                for scheduled_game in list(self.scheduled_games):
-                    game_week = self.model.week_mapping.get(scheduled_game['timeslot_id'], [None])[0]
-                    if game_week != week_num:
+                # Check if either team in scheduled game is in same division as unscheduled team
+                team_a_data = self.model.team_lookup.get(scheduled_team_a)
+                team_b_data = self.model.team_lookup.get(scheduled_team_b)
+                
+                if not team_a_data or not team_b_data:
+                    continue
+                
+                team_a_division = team_a_data['division_id']
+                team_b_division = team_b_data['division_id']
+                
+                if team_a_division != unscheduled_division and team_b_division != unscheduled_division:
+                    continue
+                
+                # Try displacing one of the teams
+                for displaced_team in [scheduled_team_a, scheduled_team_b]:
+                    displaced_team_data = self.model.team_lookup.get(displaced_team)
+                    if not displaced_team_data or displaced_team_data['division_id'] != unscheduled_division:
                         continue
                     
-                    scheduled_team_a = scheduled_game['teamA']
-                    scheduled_team_b = scheduled_game['teamB']
+                    kept_team = scheduled_team_b if displaced_team == scheduled_team_a else scheduled_team_a
                     
-                    # Check if either team in scheduled game is in same division as unscheduled team
-                    team_a_data = self.model.team_lookup.get(scheduled_team_a)
-                    team_b_data = self.model.team_lookup.get(scheduled_team_b)
-                    
-                    if not team_a_data or not team_b_data:
-                        continue
-                    
-                    team_a_division = team_a_data['division_id']
-                    team_b_division = team_b_data['division_id']
-                    
-                    if team_a_division != unscheduled_division and team_b_division != unscheduled_division:
-                        continue
-                    
-                    # Try displacing one of the teams
-                    for displaced_team in [scheduled_team_a, scheduled_team_b]:
-                        displaced_team_data = self.model.team_lookup.get(displaced_team)
-                        if not displaced_team_data or displaced_team_data['division_id'] != unscheduled_division:
-                            continue
-                        
-                        kept_team = scheduled_team_b if displaced_team == scheduled_team_a else scheduled_team_a
-                        
-                        # Can we use this TSL for the unscheduled team vs opponent?
-                        tsl_id = scheduled_game['tsl_id']
-                        timeslot_id = scheduled_game['timeslot_id']
-                        
-                        # Check if the TSL works for the candidate game
-                        game_tsls = candidate_game.get('available_tsls', [candidate_game])
-                        tsl_works = any(tsl['tsl_id'] == tsl_id for tsl in game_tsls)
-                        
-                        if not tsl_works:
-                            continue
-                        
-                        # Temporarily untrack the scheduled game
-                        self._untrack_game(scheduled_game)
-                        
-                        # Can we schedule the unscheduled team vs opponent?
-                        if not self._can_schedule_game(unscheduled_team, opponent, timeslot_id):
-                            # Can't schedule, restore
-                            self._track_game(scheduled_game)
-                            continue
-                        
-                        # Can we reschedule the displaced team with ANY opponent in the division?
-                        # Find ANY feasible game for the displaced team
-                        alternative_games = [
-                            g for g in feasible_games
-                            if (g['teamA'] == displaced_team or g['teamB'] == displaced_team)
-                        ]
-                        
-                        rescheduled = False
-                        for alt_game in alternative_games:
-                            # Get the opponent for this alternative game
-                            alt_opponent = alt_game['teamB'] if alt_game['teamA'] == displaced_team else alt_game['teamA']
-                            
-                            # Check that this alternative game is in the same week
-                            for alt_tsl in alt_game.get('available_tsls', [alt_game]):
-                                alt_tsl_id = alt_tsl['tsl_id']
-                                alt_timeslot_id = alt_tsl['timeslot_id']
-                                
-                                # Verify this TSL is in the same week
-                                if alt_timeslot_id not in self.model.week_mapping:
-                                    continue
-                                alt_week = self.model.week_mapping[alt_timeslot_id][0]
-                                if alt_week != week_num:
-                                    continue
-                                
-                                # Skip the TSL we're trying to use for the unscheduled team
-                                if alt_tsl_id == tsl_id:
-                                    continue
-                                
-                                # Skip already used TSLs
-                                if alt_tsl_id in self.used_tsls:
-                                    continue
-                                
-                                # Can we schedule displaced team with this opponent here?
-                                if self._can_schedule_game(displaced_team, alt_opponent, alt_timeslot_id):
-                                    # Success! Do the displacement
-                                    
-                                    # Schedule unscheduled team vs opponent at original TSL
-                                    new_game = candidate_game.copy()
-                                    new_game['timeslot_id'] = timeslot_id
-                                    new_game['location_id'] = scheduled_game['location_id']
-                                    new_game['location_name'] = scheduled_game['location_name']
-                                    new_game['tsl_id'] = tsl_id
-                                    new_game['date'] = scheduled_game['date']
-                                    new_game['modifier'] = scheduled_game['modifier']
-                                    
-                                    self.used_tsls.add(tsl_id)
-                                    self._track_game(new_game)
-                                    displaced_games.append(new_game)
-                                    
-                                    # Schedule displaced team with alternative opponent at alternative TSL
-                                    alt_new_game = alt_game.copy()
-                                    alt_new_game['timeslot_id'] = alt_timeslot_id
-                                    alt_new_game['location_id'] = alt_tsl['location_id']
-                                    alt_new_game['location_name'] = alt_tsl['location_name']
-                                    alt_new_game['tsl_id'] = alt_tsl_id
-                                    alt_new_game['date'] = alt_tsl['date']
-                                    alt_new_game['modifier'] = alt_tsl['modifier']
-                                    
-                                    self.used_tsls.add(alt_tsl_id)
-                                    self._track_game(alt_new_game)
-                                    displaced_games.append(alt_new_game)
-                                    
-                                    displaced_opponent_name = self.model.get_team_name(alt_opponent)
-                                    logger.info(f"Displaced team {displaced_team} from TSL {tsl_id} "
-                                              f"to TSL {alt_tsl_id} (now playing {displaced_opponent_name}) "
-                                              f"to make room for team {unscheduled_team}")
-                                    
-                                    rescheduled = True
-                                    break
-                            
-                            if rescheduled:
+                    # Find the game between unscheduled_team and kept_team
+                    swap_game = None
+                    for g in feasible_games:
+                        if ((g['teamA'] == unscheduled_team and g['teamB'] == kept_team) or
+                            (g['teamA'] == kept_team and g['teamB'] == unscheduled_team)):
+                            # Check if the scheduled game's TSL is available for this pairing
+                            game_tsls = g.get('available_tsls', [g])
+                            if any(tsl['tsl_id'] == scheduled_game['tsl_id'] for tsl in game_tsls):
+                                swap_game = g
                                 break
-                        
-                        if rescheduled:
-                            # Successfully displaced and rescheduled
-                            break
-                        else:
-                            # Couldn't reschedule, restore original game
-                            self._track_game(scheduled_game)
                     
-                    if unscheduled_team in scheduled_this_week:
-                        # We successfully scheduled this unscheduled team
-                        scheduled_this_week.add(unscheduled_team)
-                        break
+                    if not swap_game:
+                        continue
+                    
+                    # Check if displacement is viable WITHOUT modifying state
+                    swap_result = self._can_perform_displacement(
+                        scheduled_game, displaced_team, kept_team,
+                        unscheduled_team, swap_game, feasible_games, week_num
+                    )
+                    
+                    if swap_result is None:
+                        continue
+                    
+                    # Displacement is viable! Now commit the changes
+                    swap_game_template, alt_game_template, alt_tsl = swap_result
+                    
+                    # Untrack old game
+                    self._untrack_game(scheduled_game)
+                    
+                    # Track new swap game (unscheduled_team vs kept_team)
+                    new_game = swap_game_template.copy()
+                    new_game['timeslot_id'] = scheduled_game['timeslot_id']
+                    new_game['location_id'] = scheduled_game['location_id']
+                    new_game['location_name'] = scheduled_game['location_name']
+                    new_game['tsl_id'] = scheduled_game['tsl_id']
+                    new_game['date'] = scheduled_game['date']
+                    new_game['modifier'] = scheduled_game['modifier']
+                    
+                    self.used_tsls.add(scheduled_game['tsl_id'])
+                    self._track_game(new_game)
+                    displaced_games.append(new_game)
+                    
+                    # Track new game for displaced team
+                    alt_new_game = alt_game_template.copy()
+                    alt_new_game['timeslot_id'] = alt_tsl['timeslot_id']
+                    alt_new_game['location_id'] = alt_tsl['location_id']
+                    alt_new_game['location_name'] = alt_tsl['location_name']
+                    alt_new_game['tsl_id'] = alt_tsl['tsl_id']
+                    alt_new_game['date'] = alt_tsl['date']
+                    alt_new_game['modifier'] = alt_tsl['modifier']
+                    
+                    self.used_tsls.add(alt_tsl['tsl_id'])
+                    self._track_game(alt_new_game)
+                    displaced_games.append(alt_new_game)
+                    
+                    alt_opponent = alt_game_template['teamB'] if alt_game_template['teamA'] == displaced_team else alt_game_template['teamA']
+                    alt_opponent_name = self.model.get_team_name(alt_opponent)
+                    logger.info(f"Displaced team {displaced_team} from TSL {scheduled_game['tsl_id']} "
+                              f"to TSL {alt_tsl['tsl_id']} (now playing {alt_opponent_name}) "
+                              f"to make room for team {unscheduled_team}")
+                    
+                    # Successfully scheduled unscheduled team
+                    scheduled_this_week.add(unscheduled_team)
+                    break
                 
                 if unscheduled_team in scheduled_this_week:
                     break
