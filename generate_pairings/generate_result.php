@@ -138,73 +138,118 @@ header_html('Generated Schedule');
     <?php else: ?>
         
         <?php
-        // Group games by division only
-        $groupedGames = [];
-        foreach ($schedule['schedule'] as $game) {
-            $division = $game['division_name'];
-            if (!isset($groupedGames[$division])) {
-                $groupedGames[$division] = [];
+        // Sort all games by date and time
+        $sortedGames = $schedule['schedule'];
+        usort($sortedGames, function($a, $b) {
+            $dateCompare = strcmp($a['date'], $b['date']);
+            if ($dateCompare !== 0) {
+                return $dateCompare;
             }
-            $groupedGames[$division][] = $game;
-        }
-        
-        // Sort divisions
-        ksort($groupedGames);
-        
-        // Sort games within each division by date and time
-        foreach ($groupedGames as &$games) {
-            usort($games, function($a, $b) {
-                $dateCompare = strcmp($a['date'], $b['date']);
-                if ($dateCompare !== 0) {
-                    return $dateCompare;
-                }
-                return strcmp($a['time_modifier'] ?? '', $b['time_modifier'] ?? '');
-            });
-        }
+            return strcmp($a['time_modifier'] ?? '', $b['time_modifier'] ?? '');
+        });
         ?>
         
-        <?php foreach ($groupedGames as $division => $games): ?>
-            <div class="card" style="margin-bottom: 24px;">
-                <h3><?= h($division) ?></h3>
-                
-                <table class="list">
-                    <thead>
+        <div class="card" style="margin-bottom: 24px;">
+            <h3>Generated Schedule</h3>
+            
+            <table class="list">
+                <thead>
+                    <tr>
+                        <th>Date &amp; Time</th>
+                        <th>Location</th>
+                        <th>Division</th>
+                        <th>Team A</th>
+                        <th>Team B</th>
+                        <th style="text-align: right;">Weight</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($sortedGames as $game): ?>
                         <tr>
-                            <th>Date &amp; Time</th>
-                            <th>Location</th>
-                            <th>Team A</th>
-                            <th>Team B</th>
-                            <th style="text-align: right;">Weight</th>
+                            <td style="white-space: nowrap;">
+                                <?php
+                                // Format: "Tue Dec 2, 2025 7:00 PM"
+                                $timestamp = strtotime($game['date']);
+                                $dateTime = date('D M j, Y', $timestamp);
+                                if (!empty($game['time_modifier'])) {
+                                    $dateTime .= ' ' . $game['time_modifier'];
+                                }
+                                echo h($dateTime);
+                                ?>
+                            </td>
+                            <td><?= h($game['location_name']) ?></td>
+                            <td><?= h($game['division_name']) ?></td>
+                            <td><?= h($game['team_a_name']) ?></td>
+                            <td><?= h($game['team_b_name']) ?></td>
+                            <td style="text-align: right;">
+                                <?php if ($game['weight'] !== null): ?>
+                                    <?= number_format($game['weight'], 2) ?>
+                                <?php endif; ?>
+                            </td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($games as $game): ?>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        
+        <?php
+        // 2. Unused Timeslots
+        // Get all available timeslots for the date range
+        $availableTimeslots = SchedulingManagement::getAvailableTimeslots($startDate, $endDate);
+        
+        // Build set of used timeslot-location combinations
+        $usedSlots = [];
+        foreach ($schedule['schedule'] as $game) {
+            $key = ($game['timeslot_id'] ?? '') . '-' . ($game['location_id'] ?? '');
+            $usedSlots[$key] = true;
+        }
+        
+        // Find unused timeslots
+        $unusedSlots = [];
+        foreach ($availableTimeslots as $slot) {
+            $key = $slot['timeslot_id'] . '-' . $slot['location_id'];
+            if (!isset($usedSlots[$key])) {
+                $date = $slot['date'];
+                if (!isset($unusedSlots[$date])) {
+                    $unusedSlots[$date] = [];
+                }
+                $unusedSlots[$date][] = $slot;
+            }
+        }
+        ksort($unusedSlots);
+        ?>
+        
+        <!-- Unused Timeslots -->
+        <?php if (!empty($unusedSlots)): ?>
+            <div class="card" style="margin-bottom: 24px;">
+                <h3>Unused Timeslot-Location Combinations</h3>
+                <p class="small" style="margin-bottom: 12px;">
+                    These location-time slots were available but not filled with games.
+                </p>
+                
+                <?php foreach ($unusedSlots as $date => $slots): ?>
+                    <h4 style="margin-top: 16px; margin-bottom: 8px; color: #666;">
+                        <?= h(date('l, F j, Y', strtotime($date))) ?>
+                    </h4>
+                    <table class="list">
+                        <thead>
                             <tr>
-                                <td style="white-space: nowrap;">
-                                    <?php
-                                    // Format: "Tue Dec 2, 2025 7:00 PM"
-                                    $timestamp = strtotime($game['date']);
-                                    $dateTime = date('D M j, Y', $timestamp);
-                                    if (!empty($game['time_modifier'])) {
-                                        $dateTime .= ' ' . $game['time_modifier'];
-                                    }
-                                    echo h($dateTime);
-                                    ?>
-                                </td>
-                                <td><?= h($game['location_name']) ?></td>
-                                <td><?= h($game['team_a_name']) ?></td>
-                                <td><?= h($game['team_b_name']) ?></td>
-                                <td style="text-align: right;">
-                                    <?php if ($game['weight'] !== null): ?>
-                                        <?= number_format($game['weight'], 2) ?>
-                                    <?php endif; ?>
-                                </td>
+                                <th>Time</th>
+                                <th>Location</th>
                             </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($slots as $slot): ?>
+                                <tr>
+                                    <td style="white-space: nowrap;"><?= h($slot['modifier']) ?></td>
+                                    <td><?= h($slot['location_name']) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php endforeach; ?>
             </div>
-        <?php endforeach; ?>
+        <?php endif; ?>
         
         <div class="card">
             <h3>Next Steps</h3>

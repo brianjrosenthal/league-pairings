@@ -111,30 +111,6 @@ header_html('Schedule Visualization');
         $teamGames[$teamBId]['by_date'][$date] = $teamGames[$teamBId]['week_counts'][$weekStart];
     }
     
-    // 2. Unused Timeslots
-    // Get all available timeslots for the date range
-    $availableTimeslots = SchedulingManagement::getAvailableTimeslots($startDate, $endDate);
-    
-    // Build set of used timeslot-location combinations
-    $usedSlots = [];
-    foreach ($schedule['schedule'] as $game) {
-        $key = ($game['timeslot_id'] ?? '') . '-' . ($game['location_id'] ?? '');
-        $usedSlots[$key] = true;
-    }
-    
-    // Find unused timeslots
-    $unusedSlots = [];
-    foreach ($availableTimeslots as $slot) {
-        $key = $slot['timeslot_id'] . '-' . $slot['location_id'];
-        if (!isset($usedSlots[$key])) {
-            $date = $slot['date'];
-            if (!isset($unusedSlots[$date])) {
-                $unusedSlots[$date] = [];
-            }
-            $unusedSlots[$date][] = $slot;
-        }
-    }
-    ksort($unusedSlots);
     ?>
     
     <!-- Team Schedule Grids (one per division) -->
@@ -188,38 +164,6 @@ header_html('Schedule Visualization');
             </p>
         </div>
     <?php endforeach; ?>
-    
-    <!-- Unused Timeslots -->
-    <?php if (!empty($unusedSlots)): ?>
-        <div class="card" style="margin-bottom: 24px;">
-            <h3>Unused Timeslot-Location Combinations</h3>
-            <p class="small" style="margin-bottom: 12px;">
-                These location-time slots were available but not filled with games.
-            </p>
-            
-            <?php foreach ($unusedSlots as $date => $slots): ?>
-                <h4 style="margin-top: 16px; margin-bottom: 8px; color: #666;">
-                    <?= h(date('l, F j, Y', strtotime($date))) ?>
-                </h4>
-                <table class="list">
-                    <thead>
-                        <tr>
-                            <th>Time</th>
-                            <th>Location</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($slots as $slot): ?>
-                            <tr>
-                                <td style="white-space: nowrap;"><?= h($slot['modifier']) ?></td>
-                                <td><?= h($slot['location_name']) ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            <?php endforeach; ?>
-        </div>
-    <?php endif; ?>
     
 <?php endif; ?>
 
