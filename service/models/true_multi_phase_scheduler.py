@@ -282,6 +282,30 @@ class TrueMultiPhaseScheduler:
                 # Already played = lower priority (but still try to cover)
                 objective_terms.append(coverage_var)
         
+        # Add Sunday preference as a tiebreaker (10x weight vs 1000x for team coverage)
+        # This preserves high-slot days for future scheduling flexibility
+        for i, game in enumerate(feasible_games):
+            tsl_vars, available_tsls = tsl_assignment.get(i, ({}, []))
+            for tsl in available_tsls:
+                tsl_id = tsl['tsl_id']
+                timeslot_id = tsl.get('timeslot_id')
+                
+                # Check if this TSL is on Sunday
+                if timeslot_id and timeslot_id in self.model.day_mapping:
+                    day = self.model.day_mapping[timeslot_id]
+                    # Assuming day format like "2025-11-24" or similar date string
+                    # Sunday detection: check if it's Sunday (day of week)
+                    try:
+                        from datetime import datetime
+                        day_obj = datetime.strptime(day, '%Y-%m-%d')
+                        if day_obj.weekday() == 6:  # Sunday = 6 in Python's weekday()
+                            # Add small bonus for Sunday TSLs
+                            if tsl_id in tsl_vars:
+                                objective_terms.append(10 * tsl_vars[tsl_id])
+                    except (ValueError, TypeError):
+                        # If day format is different or parsing fails, skip Sunday bonus
+                        pass
+        
         model.Maximize(sum(objective_terms))
         
         # Solve
@@ -1038,8 +1062,21 @@ class TrueMultiPhaseScheduler:
                                 if tsl_week == week_num:
                                     displaced_tsls.append(tsl)
                     
-                    # Show only available TSLs
-                    available_tsls_for_team = [tsl for tsl in displaced_tsls if tsl.get('tsl_id') not in self.used_tsls]
+                    # Show only available TSLs (excluding same day as the game being displaced)
+                    scheduled_game_day = self.model.day_mapping.get(scheduled_game['timeslot_id'])
+                    
+                    available_tsls_for_team = []
+                    for tsl in displaced_tsls:
+                        tsl_id = tsl.get('tsl_id')
+                        tsl_timeslot_id = tsl.get('timeslot_id')
+                        
+                        # Filter out:
+                        # 1. Already used TSLs
+                        # 2. TSLs on the same day as the game being displaced
+                        if tsl_id not in self.used_tsls:
+                            tsl_day = self.model.day_mapping.get(tsl_timeslot_id)
+                            if tsl_day != scheduled_game_day:
+                                available_tsls_for_team.append(tsl)
                     
                     if available_tsls_for_team:
                         for tsl in available_tsls_for_team:
