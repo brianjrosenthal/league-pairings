@@ -51,6 +51,11 @@ class ApplicationUI {
         if ($u) {
             $navLeft[] = $link('/index.php','Home');
             
+            // Admin toggle link (for admins only) - appears on right side
+            if (!empty($u['is_admin'])) {
+                $navRight[] = '<a href="#" id="adminMenuToggle" class="admin-menu-toggle">Admin</a>';
+            }
+            
             // Profile photo with dropdown menu
             $initials = strtoupper(substr((string)($u['first_name'] ?? ''),0,1).substr((string)($u['last_name'] ?? ''),0,1));
             $photoUrl = Files::profilePhotoUrl($u['photo_public_file_id'] ?? null, 32);
@@ -113,8 +118,13 @@ class ApplicationUI {
             // Avatar dropdown script
             echo 'var at=document.getElementById("avatarToggle");var m=document.getElementById("avatarMenu");function hideAvatar(){if(m){m.classList.add("hidden");m.setAttribute("aria-hidden","true");}if(at){at.setAttribute("aria-expanded","false");}}function toggleAvatar(e){e.preventDefault();if(!m)return;var isHidden=m.classList.contains("hidden");if(isHidden){m.classList.remove("hidden");m.setAttribute("aria-hidden","false");if(at)at.setAttribute("aria-expanded","true");}else{hideAvatar();}}if(at)at.addEventListener("click",toggleAvatar);';
             
-            // Admin submenu toggle (for mobile)
+            // Admin submenu toggle (both desktop and mobile)
             if (!empty($u['is_admin'])) {
+                // Desktop toggle (Admin link in main nav)
+                echo 'var adminMenuToggle=document.getElementById("adminMenuToggle");var adminSubmenuWrap=document.querySelector(".admin-submenu-wrap");';
+                echo 'if(adminMenuToggle&&adminSubmenuWrap){adminMenuToggle.addEventListener("click",function(e){e.preventDefault();var isOpen=adminSubmenuWrap.classList.contains("open");if(isOpen){adminSubmenuWrap.classList.remove("open");}else{adminSubmenuWrap.classList.add("open");}});}';
+                
+                // Mobile toggle (button inside admin bar)
                 echo 'var adminToggle=document.getElementById("adminSubmenuToggle");var adminSubmenu=document.getElementById("adminSubmenu");if(adminToggle&&adminSubmenu){adminToggle.addEventListener("click",function(){var isOpen=adminSubmenu.classList.contains("open");if(isOpen){adminSubmenu.classList.remove("open");adminToggle.setAttribute("aria-expanded","false");}else{adminSubmenu.classList.add("open");adminToggle.setAttribute("aria-expanded","true");}});}';
             }
             

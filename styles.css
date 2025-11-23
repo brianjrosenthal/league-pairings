@@ -24,8 +24,13 @@ header {
 
 /* Admin submenu */
 .admin-submenu-wrap {
+  display: none; /* Hidden by default */
   background: #e8e8ef;
   border-bottom: 1px solid #d9d9e3;
+}
+
+.admin-submenu-wrap.open {
+  display: block; /* Show when toggled */
 }
 
 .admin-submenu-toggle-wrap {
