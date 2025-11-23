@@ -388,7 +388,20 @@ header_html('Generated Schedule');
             <textarea id="csvOutput" readonly style="width: 100%; height: 400px; font-family: monospace; font-size: 12px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; resize: vertical;"><?php
                 // Generate CSV content
                 echo "Date,Day,Division,Time,Location,Team A,Team B,Weight\n";
-                foreach ($schedule['schedule'] as $game) {
+                
+                // Sort schedule by date and time
+                $csvGames = $schedule['schedule'];
+                usort($csvGames, function($a, $b) {
+                    // First compare dates
+                    $dateCompare = strcmp($a['date'], $b['date']);
+                    if ($dateCompare !== 0) {
+                        return $dateCompare;
+                    }
+                    // If dates are equal, compare times
+                    return strcmp($a['time_modifier'] ?? '', $b['time_modifier'] ?? '');
+                });
+                
+                foreach ($csvGames as $game) {
                     $date = $game['date'];
                     $dayOfWeek = date('l', strtotime($date));
                     $formattedDate = date('m/d/Y', strtotime($date));
