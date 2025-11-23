@@ -253,12 +253,12 @@ class ORToolsScheduler(BaseScheduler):
     than PuLP, especially for large-scale scheduling.
     """
     
-    def __init__(self, timeout: int = 60):
+    def __init__(self, timeout: int = 20):
         """
         Initialize OR-Tools scheduler.
         
         Args:
-            timeout: Maximum time in seconds for solver (default: 60)
+            timeout: Maximum time in seconds for solver (default: 20)
         """
         self.timeout = timeout
     
@@ -352,8 +352,20 @@ class ORToolsScheduler(BaseScheduler):
         
         # Create solver and solve
         solver = cp_model.CpSolver()
+        
+        # Timeout setting
         solver.parameters.max_time_in_seconds = self.timeout
-        solver.parameters.log_search_progress = False
+        
+        # Performance optimizations
+        solver.parameters.log_search_progress = False  # Disable logging
+        solver.parameters.num_search_workers = 1  # Single-threaded for small problems
+        solver.parameters.cp_model_presolve = True  # Enable aggressive presolving
+        solver.parameters.linearization_level = 2  # Maximum linearization
+        
+        # For small problems, we can find optimal quickly
+        # Allow early termination if solution quality is good
+        if len(feasible_games) < 10000:
+            solver.parameters.relative_gap_limit = 0.01  # Stop at 1% of optimal
         
         status = solver.Solve(model)
         
