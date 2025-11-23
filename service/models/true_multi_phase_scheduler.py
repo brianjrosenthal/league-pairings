@@ -171,9 +171,9 @@ class TrueMultiPhaseScheduler:
         
         for team_id in sorted(all_teams):
             games_this_run = self.games_this_run.get(team_id, 0)
-            logger.debug(f"  Team {team_id}: {team_game_count[team_id]} feasible games, "
-                        f"{len(team_tsl_options[team_id])} TSL options, "
-                        f"{games_this_run} games this run")
+            logger.info(f"  Team {team_id}: {team_game_count[team_id]} feasible games, "
+                       f"{len(team_tsl_options[team_id])} TSL options, "
+                       f"{games_this_run} games this run")
         
         model = cp_model.CpModel()
         
@@ -182,7 +182,7 @@ class TrueMultiPhaseScheduler:
         for i, game in enumerate(feasible_games):
             game_vars[i] = model.NewBoolVar(f'game_{i}')
         
-        # Constraint: Each team plays at most once
+        # Constraint: Each team plays at most once in this phase
         team_games = defaultdict(list)
         for i, game in enumerate(feasible_games):
             team_games[game['teamA']].append(i)
@@ -190,6 +190,28 @@ class TrueMultiPhaseScheduler:
         
         for team_id, game_indices in team_games.items():
             model.Add(sum(game_vars[i] for i in game_indices) <= 1)
+        
+        # Constraint: Respect weekly game limits
+        # Group games by week for each team
+        team_week_games = defaultdict(lambda: defaultdict(list))
+        for i, game in enumerate(feasible_games):
+            for tsl in game.get('available_tsls', [game]):
+                timeslot_id = tsl.get('timeslot_id')
+                if timeslot_id and timeslot_id in self.model.week_mapping:
+                    week_num = self.model.week_mapping[timeslot_id][0]
+                    team_week_games[game['teamA']][week_num].append(i)
+                    team_week_games[game['teamB']][week_num].append(i)
+        
+        # For each team and week, limit games
+        for team_id in team_games.keys():
+            for week_num, game_indices in team_week_games[team_id].items():
+                # Current games already scheduled for this team in this week
+                current_count = self.team_weekly_games[week_num].get(team_id, 0)
+                remaining_capacity = self.max_games_per_week - current_count
+                
+                if remaining_capacity > 0:
+                    # Team can play at most remaining_capacity more games this week
+                    model.Add(sum(game_vars[i] for i in game_indices) <= remaining_capacity)
         
         # TSL assignment: Expand games to consider all available TSLs
         # For each game, we need to choose which TSL to use
@@ -308,7 +330,7 @@ class TrueMultiPhaseScheduler:
             # For each unscheduled team, analyze what went wrong
             for team_id in sorted(unscheduled_teams):
                 team_feasible_games = [g for g in feasible_games if g['teamA'] == team_id or g['teamB'] == team_id]
-                logger.debug(f"  Team {team_id} had {len(team_feasible_games)} feasible games")
+                logger.info(f"  Team {team_id} had {len(team_feasible_games)} feasible games")
                 
                 # Check if TSLs for their games were taken
                 team_tsls = set()
@@ -317,7 +339,7 @@ class TrueMultiPhaseScheduler:
                         team_tsls.add(tsl['tsl_id'])
                 
                 taken_tsls = team_tsls & used_tsls_in_solution
-                logger.debug(f"    {len(taken_tsls)} of their {len(team_tsls)} TSL options were used by other teams")
+                logger.info(f"    {len(taken_tsls)} of their {len(team_tsls)} TSL options were used by other teams")
         else:
             logger.info("Phase 1A: All teams scheduled successfully!")
         
@@ -382,6 +404,28 @@ class TrueMultiPhaseScheduler:
         
         for team_id, game_indices in team_games.items():
             model.Add(sum(game_vars[i] for i in game_indices) <= 1)
+        
+        # Constraint: Respect weekly game limits
+        # Group games by week for each team
+        team_week_games = defaultdict(lambda: defaultdict(list))
+        for i, game in enumerate(remaining_games):
+            for tsl in game.get('available_tsls', [game]):
+                timeslot_id = tsl.get('timeslot_id')
+                if timeslot_id and timeslot_id in self.model.week_mapping:
+                    week_num = self.model.week_mapping[timeslot_id][0]
+                    team_week_games[game['teamA']][week_num].append(i)
+                    team_week_games[game['teamB']][week_num].append(i)
+        
+        # For each team and week, limit games
+        for team_id in team_games.keys():
+            for week_num, game_indices in team_week_games[team_id].items():
+                # Current games already scheduled for this team in this week
+                current_count = self.team_weekly_games[week_num].get(team_id, 0)
+                remaining_capacity = self.max_games_per_week - current_count
+                
+                if remaining_capacity > 0:
+                    # Team can play at most remaining_capacity more games this week
+                    model.Add(sum(game_vars[i] for i in game_indices) <= remaining_capacity)
         
         # TSL assignment
         tsl_assignment = {}
