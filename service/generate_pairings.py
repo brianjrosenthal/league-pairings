@@ -191,6 +191,7 @@ class ScheduleGenerator:
                 "game_id": game['game_id'],
                 "date": game_date,
                 "time_modifier": game['modifier'],
+                "timeslot_id": game['timeslot_id'],
                 "location": game['location_name'],
                 "location_id": game['location_id'],
                 "division": game['division_name'],

@@ -329,6 +329,67 @@ class SchedulingManagement {
     }
 
     /**
+     * Get all available timeslot-location combinations for a date range
+     */
+    public static function getAvailableTimeslots(string $startDate, string $endDate): array {
+        $pdo = self::pdo();
+        
+        $sql = 'SELECT 
+                    ts.id AS timeslot_id,
+                    ts.date,
+                    ts.modifier,
+                    l.id AS location_id,
+                    l.name AS location_name
+                FROM timeslots ts
+                INNER JOIN location_availability la ON ts.id = la.timeslot_id
+                INNER JOIN locations l ON la.location_id = l.id
+                WHERE ts.date BETWEEN ? AND ?
+                ORDER BY ts.date, ts.modifier, l.name';
+        
+        $st = $pdo->prepare($sql);
+        $st->execute([$startDate, $endDate]);
+        return $st->fetchAll();
+    }
+    
+    /**
+     * Get teams organized by division for schedule grid
+     */
+    public static function getTeamsByDivision(): array {
+        $pdo = self::pdo();
+        
+        $sql = 'SELECT 
+                    t.id AS team_id,
+                    t.name AS team_name,
+                    t.division_id,
+                    d.name AS division_name
+                FROM teams t
+                INNER JOIN divisions d ON t.division_id = d.id
+                ORDER BY d.name, t.name';
+        
+        $st = $pdo->prepare($sql);
+        $st->execute();
+        $rows = $st->fetchAll();
+        
+        // Group by division
+        $divisions = [];
+        foreach ($rows as $row) {
+            $divisionId = $row['division_id'];
+            if (!isset($divisions[$divisionId])) {
+                $divisions[$divisionId] = [
+                    'division_name' => $row['division_name'],
+                    'teams' => []
+                ];
+            }
+            $divisions[$divisionId]['teams'][] = [
+                'team_id' => $row['team_id'],
+                'team_name' => $row['team_name']
+            ];
+        }
+        
+        return $divisions;
+    }
+
+    /**
      * Format schedule data from Python service for display
      * The Python service already returns enriched data, so we just reformat field names
      */
@@ -341,6 +402,7 @@ class SchedulingManagement {
             $formattedSchedule[] = [
                 'date' => $game['date'] ?? '',
                 'time_modifier' => $game['time_modifier'] ?? '',
+                'timeslot_id' => $game['timeslot_id'] ?? null,
                 'location_id' => $game['location_id'] ?? null,
                 'location_name' => $game['location'] ?? 'Unknown Location',
                 'division_id' => $game['division_id'] ?? null,

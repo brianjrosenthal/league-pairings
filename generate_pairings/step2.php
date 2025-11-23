@@ -40,7 +40,7 @@ header_html('Generate Pairings - Review');
 <h2>Generate Game Pairings - Review</h2>
 
 <div style="margin-bottom: 16px;">
-    <a href="/generate_pairings/step1.php" class="button">← Back to Configuration</a>
+    <a href="/generate_pairings/step1.php?start_date=<?= urlencode($startDate) ?>&end_date=<?= urlencode($endDate) ?>&algorithm=<?= urlencode($algorithm) ?>&timeout=<?= urlencode($timeout) ?>" class="button">← Back to Configuration</a>
 </div>
 
 <div class="card" style="margin-bottom: 24px;">

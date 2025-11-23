@@ -9,25 +9,33 @@ $me = current_user();
 // Get system statistics
 $stats = SchedulingManagement::getSystemStats();
 
-// Default dates: skip 6 days, then next Sunday to following Thursday
-$sixDaysOut = strtotime('+6 days');
+// Get parameters from URL or use defaults
+$startDate = $_GET['start_date'] ?? '';
+$endDate = $_GET['end_date'] ?? '';
+$algorithm = $_GET['algorithm'] ?? 'ortools';
+$timeout = (int)($_GET['timeout'] ?? 120);
 
-// Find the next Sunday at or after 6 days out
-$dayOfWeek = date('N', $sixDaysOut); // 1 (Monday) through 7 (Sunday)
-if ($dayOfWeek == 7) {
-    // Already a Sunday
-    $nextSunday = $sixDaysOut;
-} else {
-    // Calculate days until next Sunday (7 - dayOfWeek)
-    $daysUntilSunday = 7 - $dayOfWeek;
-    $nextSunday = strtotime("+{$daysUntilSunday} days", $sixDaysOut);
+// If no dates provided, calculate defaults: skip 6 days, then next Sunday to following Thursday
+if (empty($startDate) || empty($endDate)) {
+    $sixDaysOut = strtotime('+6 days');
+
+    // Find the next Sunday at or after 6 days out
+    $dayOfWeek = date('N', $sixDaysOut); // 1 (Monday) through 7 (Sunday)
+    if ($dayOfWeek == 7) {
+        // Already a Sunday
+        $nextSunday = $sixDaysOut;
+    } else {
+        // Calculate days until next Sunday (7 - dayOfWeek)
+        $daysUntilSunday = 7 - $dayOfWeek;
+        $nextSunday = strtotime("+{$daysUntilSunday} days", $sixDaysOut);
+    }
+
+    // End date is the following Thursday (4 days after Sunday)
+    $followingThursday = strtotime('+4 days', $nextSunday);
+
+    $startDate = date('Y-m-d', $nextSunday);
+    $endDate = date('Y-m-d', $followingThursday);
 }
-
-// End date is the following Thursday (4 days after Sunday)
-$followingThursday = strtotime('+4 days', $nextSunday);
-
-$defaultStartDate = date('Y-m-d', $nextSunday);
-$defaultEndDate = date('Y-m-d', $followingThursday);
 
 header_html('Generate Pairings');
 ?>
@@ -80,26 +88,26 @@ header_html('Generate Pairings');
     <form method="get" action="/generate_pairings/step2.php" class="stack">
         <label>
             <span>Start Date</span>
-            <input type="date" name="start_date" value="<?= h($defaultStartDate) ?>" required>
+            <input type="date" name="start_date" value="<?= h($startDate) ?>" required>
         </label>
         
         <label>
             <span>End Date</span>
-            <input type="date" name="end_date" value="<?= h($defaultEndDate) ?>" required>
+            <input type="date" name="end_date" value="<?= h($endDate) ?>" required>
         </label>
         
         <label>
             <span>Algorithm</span>
             <select name="algorithm">
-                <option value="greedy">Greedy (Legacy, Single Game Per Team)</option>
-                <option value="ortools" selected>Multi-Phase OR-Tools (1-3 Games/Week, Recommended)</option>
-                <option value="ilp">PuLP ILP (Legacy, Single Game Per Team)</option>
+                <option value="greedy" <?= $algorithm === 'greedy' ? 'selected' : '' ?>>Greedy (Legacy, Single Game Per Team)</option>
+                <option value="ortools" <?= $algorithm === 'ortools' ? 'selected' : '' ?>>Multi-Phase OR-Tools (1-3 Games/Week, Recommended)</option>
+                <option value="ilp" <?= $algorithm === 'ilp' ? 'selected' : '' ?>>PuLP ILP (Legacy, Single Game Per Team)</option>
             </select>
         </label>
         
         <label>
             <span>Optimization Timeout (seconds)</span>
-            <input type="number" name="timeout" value="120" min="5" max="600" step="5" required>
+            <input type="number" name="timeout" value="<?= h($timeout) ?>" min="5" max="600" step="5" required>
             <div class="small" style="margin-top: 4px; color: #666;">
                 Quick test: 15-30 seconds &middot; Full optimization: 120-300 seconds
             </div>
