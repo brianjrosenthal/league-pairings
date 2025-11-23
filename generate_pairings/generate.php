@@ -88,17 +88,6 @@ header_html('Generated Schedule');
         </div>
     </div>
     
-    <?php if (!empty($schedule['warnings'])): ?>
-        <div class="announcement" style="margin-bottom: 24px;">
-            <strong>Warnings:</strong>
-            <ul style="margin: 8px 0 0 0; padding-left: 20px;">
-                <?php foreach ($schedule['warnings'] as $warning): ?>
-                    <li><?= h($warning) ?></li>
-                <?php endforeach; ?>
-            </ul>
-        </div>
-    <?php endif; ?>
-    
     <?php if (empty($schedule['schedule'])): ?>
         <div class="card">
             <p>No games could be scheduled for the selected date range.</p>
