@@ -4,7 +4,7 @@ Scheduling algorithms for game pairing generation.
 
 from abc import ABC, abstractmethod
 from typing import Dict, List, Set
-from ..utils.exceptions import NoFeasibleGamesError
+from utils.exceptions import NoFeasibleGamesError
 
 
 class BaseScheduler(ABC):

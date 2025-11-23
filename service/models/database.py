@@ -5,7 +5,7 @@ Database access layer for the scheduling service.
 import mysql.connector
 from typing import Dict, List, Optional
 from datetime import date, datetime
-from ..utils.exceptions import DatabaseError
+from utils.exceptions import DatabaseError
 
 
 class Database:
