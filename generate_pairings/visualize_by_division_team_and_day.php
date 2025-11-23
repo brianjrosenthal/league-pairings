@@ -75,8 +75,14 @@ header_html('Schedule Visualization');
     sort($allDates);
     
     // Build team game tracking: {team_id: {date: {game_num, location, modifier, opponent}}}
+    // First, sort games by date to ensure correct game numbering
+    $sortedSchedule = $schedule['schedule'];
+    usort($sortedSchedule, function($a, $b) {
+        return strcmp($a['date'], $b['date']);
+    });
+    
     $teamGames = [];
-    foreach ($schedule['schedule'] as $game) {
+    foreach ($sortedSchedule as $game) {
         $date = $game['date'];
         $teamAId = $game['team_a_id'];
         $teamBId = $game['team_b_id'];
