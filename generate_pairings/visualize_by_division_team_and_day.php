@@ -74,12 +74,14 @@ header_html('Schedule Visualization');
     $allDates = array_unique($allDates);
     sort($allDates);
     
-    // Build team game tracking: {team_id: {date: [game_nums_in_week]}}
+    // Build team game tracking: {team_id: {date: {game_num, location, modifier}}}
     $teamGames = [];
     foreach ($schedule['schedule'] as $game) {
         $date = $game['date'];
         $teamAId = $game['team_a_id'];
         $teamBId = $game['team_b_id'];
+        $location = $game['location_name'] ?? '';
+        $modifier = $game['modifier'] ?? '';
         
         // Determine week (Sunday-Saturday)
         $timestamp = strtotime($date);
@@ -107,8 +109,19 @@ header_html('Schedule Visualization');
         $teamGames[$teamAId]['week_counts'][$weekStart]++;
         $teamGames[$teamBId]['week_counts'][$weekStart]++;
         
-        $teamGames[$teamAId]['by_date'][$date] = $teamGames[$teamAId]['week_counts'][$weekStart];
-        $teamGames[$teamBId]['by_date'][$date] = $teamGames[$teamBId]['week_counts'][$weekStart];
+        $gameNumA = $teamGames[$teamAId]['week_counts'][$weekStart];
+        $gameNumB = $teamGames[$teamBId]['week_counts'][$weekStart];
+        
+        $teamGames[$teamAId]['by_date'][$date] = [
+            'game_num' => $gameNumA,
+            'location' => $location,
+            'modifier' => $modifier
+        ];
+        $teamGames[$teamBId]['by_date'][$date] = [
+            'game_num' => $gameNumB,
+            'location' => $location,
+            'modifier' => $modifier
+        ];
     }
     
     ?>
@@ -138,17 +151,22 @@ header_html('Schedule Visualization');
                                     <?php
                                     $teamId = $team['team_id'];
                                     $hasGame = isset($teamGames[$teamId]['by_date'][$date]);
-                                    $gameNum = $hasGame ? $teamGames[$teamId]['by_date'][$date] : 0;
+                                    $gameInfo = $hasGame ? $teamGames[$teamId]['by_date'][$date] : null;
                                     
                                     // Determine color
                                     $bgColor = '#e0e0e0'; // gray for no game
                                     if ($hasGame) {
-                                        $bgColor = ($gameNum == 1) ? '#81c784' : '#64b5f6'; // green for first, blue for subsequent
+                                        $bgColor = ($gameInfo['game_num'] == 1) ? '#81c784' : '#64b5f6'; // green for first, blue for subsequent
                                     }
                                     ?>
-                                    <td style="border: 1px solid #ddd; padding: 8px; background: <?= $bgColor ?>; text-align: center;">
+                                    <td style="border: 1px solid #ddd; padding: 6px 4px; background: <?= $bgColor ?>; text-align: center; font-size: 0.85em; line-height: 1.3;">
                                         <?php if ($hasGame): ?>
-                                            <?= $gameNum ?>
+                                            <div style="white-space: nowrap;">
+                                                <?= h($gameInfo['location']) ?>
+                                            </div>
+                                            <div style="white-space: nowrap;">
+                                                <?= h($gameInfo['modifier']) ?> (<?= h($gameInfo['game_num']) ?>)
+                                            </div>
                                         <?php endif; ?>
                                     </td>
                                 <?php endforeach; ?>
