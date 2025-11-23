@@ -81,9 +81,53 @@ header_html('Schedule Visualization');
         return strcmp($a['date'], $b['date']);
     });
     
+    // Group dates by team and week - track unique dates per team per week
+    $teamWeekDates = []; // {team_id: {week_start: [dates...]}}
+    foreach ($sortedSchedule as $game) {
+        $date = $game['date'];
+        $timestamp = strtotime($date);
+        $dayOfWeek = (int)date('N', $timestamp); // 1=Monday, 7=Sunday
+        $daysToSunday = ($dayOfWeek == 7) ? 0 : $dayOfWeek;
+        $weekStart = date('Y-m-d', strtotime("-{$daysToSunday} days", $timestamp));
+        
+        $teamAId = $game['team_a_id'];
+        $teamBId = $game['team_b_id'];
+        
+        if (!isset($teamWeekDates[$teamAId])) {
+            $teamWeekDates[$teamAId] = [];
+        }
+        if (!isset($teamWeekDates[$teamBId])) {
+            $teamWeekDates[$teamBId] = [];
+        }
+        if (!isset($teamWeekDates[$teamAId][$weekStart])) {
+            $teamWeekDates[$teamAId][$weekStart] = [];
+        }
+        if (!isset($teamWeekDates[$teamBId][$weekStart])) {
+            $teamWeekDates[$teamBId][$weekStart] = [];
+        }
+        
+        // Add date to the set (array_unique will deduplicate later)
+        $teamWeekDates[$teamAId][$weekStart][] = $date;
+        $teamWeekDates[$teamBId][$weekStart][] = $date;
+    }
+    
+    // Deduplicate and sort dates for each team/week
+    foreach ($teamWeekDates as $teamId => $weeks) {
+        foreach ($weeks as $weekStart => $dates) {
+            $teamWeekDates[$teamId][$weekStart] = array_unique($dates);
+            sort($teamWeekDates[$teamId][$weekStart]);
+        }
+    }
+    
+    // Now build the display structure with correct game numbers
     $teamGames = [];
     foreach ($sortedSchedule as $game) {
         $date = $game['date'];
+        $timestamp = strtotime($date);
+        $dayOfWeek = (int)date('N', $timestamp);
+        $daysToSunday = ($dayOfWeek == 7) ? 0 : $dayOfWeek;
+        $weekStart = date('Y-m-d', strtotime("-{$daysToSunday} days", $timestamp));
+        
         $teamAId = $game['team_a_id'];
         $teamBId = $game['team_b_id'];
         $teamAName = $game['team_a_name'] ?? '';
@@ -91,47 +135,34 @@ header_html('Schedule Visualization');
         $location = $game['location_name'] ?? '';
         $modifier = $game['time_modifier'] ?? '';
         
-        // Determine week (Sunday-Saturday)
-        $timestamp = strtotime($date);
-        $dayOfWeek = (int)date('N', $timestamp); // 1=Monday, 7=Sunday
-        // Calculate days to subtract to get to Sunday
-        $daysToSunday = ($dayOfWeek == 7) ? 0 : $dayOfWeek;
-        $weekStart = date('Y-m-d', strtotime("-{$daysToSunday} days", $timestamp));
-        
-        // Track game number in week for each team
         if (!isset($teamGames[$teamAId])) {
-            $teamGames[$teamAId] = ['by_date' => [], 'week_counts' => []];
+            $teamGames[$teamAId] = ['by_date' => []];
         }
         if (!isset($teamGames[$teamBId])) {
-            $teamGames[$teamBId] = ['by_date' => [], 'week_counts' => []];
+            $teamGames[$teamBId] = ['by_date' => []];
         }
         
-        // Increment week count
-        if (!isset($teamGames[$teamAId]['week_counts'][$weekStart])) {
-            $teamGames[$teamAId]['week_counts'][$weekStart] = 0;
+        // Calculate game number by finding position of this date in sorted unique dates for this week
+        $gameNumA = array_search($date, $teamWeekDates[$teamAId][$weekStart]) + 1;
+        $gameNumB = array_search($date, $teamWeekDates[$teamBId][$weekStart]) + 1;
+        
+        // Only store if not already stored for this date (avoid duplicates)
+        if (!isset($teamGames[$teamAId]['by_date'][$date])) {
+            $teamGames[$teamAId]['by_date'][$date] = [
+                'game_num' => $gameNumA,
+                'location' => $location,
+                'modifier' => $modifier,
+                'opponent' => $teamBName
+            ];
         }
-        if (!isset($teamGames[$teamBId]['week_counts'][$weekStart])) {
-            $teamGames[$teamBId]['week_counts'][$weekStart] = 0;
+        if (!isset($teamGames[$teamBId]['by_date'][$date])) {
+            $teamGames[$teamBId]['by_date'][$date] = [
+                'game_num' => $gameNumB,
+                'location' => $location,
+                'modifier' => $modifier,
+                'opponent' => $teamAName
+            ];
         }
-        
-        $teamGames[$teamAId]['week_counts'][$weekStart]++;
-        $teamGames[$teamBId]['week_counts'][$weekStart]++;
-        
-        $gameNumA = $teamGames[$teamAId]['week_counts'][$weekStart];
-        $gameNumB = $teamGames[$teamBId]['week_counts'][$weekStart];
-        
-        $teamGames[$teamAId]['by_date'][$date] = [
-            'game_num' => $gameNumA,
-            'location' => $location,
-            'modifier' => $modifier,
-            'opponent' => $teamBName
-        ];
-        $teamGames[$teamBId]['by_date'][$date] = [
-            'game_num' => $gameNumB,
-            'location' => $location,
-            'modifier' => $modifier,
-            'opponent' => $teamAName
-        ];
     }
     
     ?>
