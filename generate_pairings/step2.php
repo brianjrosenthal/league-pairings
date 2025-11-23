@@ -1,4 +1,6 @@
 <?php
+set_time_limit(120); // 2 minutes for ILP scheduling operations
+
 require_once __DIR__ . '/../partials.php';
 require_once __DIR__ . '/../lib/SchedulingManagement.php';
 Application::init();
