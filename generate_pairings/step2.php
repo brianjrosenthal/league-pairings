@@ -83,6 +83,40 @@ header_html('Generate Pairings - Review');
 <?php endif; ?>
 
 <div class="card" style="margin-bottom: 24px;">
+    <h3>Generate Schedule</h3>
+    <p class="small" style="margin-bottom: 16px;">
+        Algorithm: <strong><?= h(ucfirst($algorithm)) ?></strong>
+    </p>
+    
+    <?php
+    $hasWarnings = false;
+    foreach ($divisionData as $division) {
+        foreach ($division['teams'] as $team) {
+            if ($team['available_slots'] === 0) {
+                $hasWarnings = true;
+                break 2;
+            }
+        }
+    }
+    ?>
+    
+    <?php if ($hasWarnings): ?>
+        <div class="announcement" style="margin-bottom: 16px;">
+            <strong>Note:</strong> Some teams have no available timeslots and will not be included in the generated schedule.
+        </div>
+    <?php endif; ?>
+    
+    <div class="actions">
+        <a href="/generate_pairings/generate.php?start_date=<?= urlencode($startDate) ?>&end_date=<?= urlencode($endDate) ?>&algorithm=<?= urlencode($algorithm) ?>" 
+           class="button primary"
+           <?= $timeslotLocationCount === 0 ? 'disabled style="opacity: 0.5; pointer-events: none;"' : '' ?>>
+            Generate Pairings
+        </a>
+        <a href="/generate_pairings/step1.php" class="button">Cancel</a>
+    </div>
+</div>
+
+<div class="card">
     <h3>Team Availability Debugging</h3>
     <p class="small" style="margin-bottom: 16px;">
         Review team availability to ensure all teams have timeslots they can play in.
@@ -120,40 +154,6 @@ header_html('Generate Pairings - Review');
             </div>
         <?php endforeach; ?>
     <?php endif; ?>
-</div>
-
-<div class="card">
-    <h3>Generate Schedule</h3>
-    <p class="small" style="margin-bottom: 16px;">
-        Algorithm: <strong><?= h(ucfirst($algorithm)) ?></strong>
-    </p>
-    
-    <?php
-    $hasWarnings = false;
-    foreach ($divisionData as $division) {
-        foreach ($division['teams'] as $team) {
-            if ($team['available_slots'] === 0) {
-                $hasWarnings = true;
-                break 2;
-            }
-        }
-    }
-    ?>
-    
-    <?php if ($hasWarnings): ?>
-        <div class="announcement" style="margin-bottom: 16px;">
-            <strong>Note:</strong> Some teams have no available timeslots and will not be included in the generated schedule.
-        </div>
-    <?php endif; ?>
-    
-    <div class="actions">
-        <a href="/generate_pairings/generate.php?start_date=<?= urlencode($startDate) ?>&end_date=<?= urlencode($endDate) ?>&algorithm=<?= urlencode($algorithm) ?>" 
-           class="button primary"
-           <?= $timeslotLocationCount === 0 ? 'disabled style="opacity: 0.5; pointer-events: none;"' : '' ?>>
-            Generate Pairings
-        </a>
-        <a href="/generate_pairings/step1.php" class="button">Cancel</a>
-    </div>
 </div>
 
 <?php footer_html(); ?>
