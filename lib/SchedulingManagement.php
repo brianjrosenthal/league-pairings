@@ -207,12 +207,12 @@ class SchedulingManagement {
         }
         
         // Get all timeslots
-        $st = $pdo->query('SELECT id, date, time_modifier FROM timeslots');
+        $st = $pdo->query('SELECT id, date, modifier FROM timeslots');
         $timeslots = [];
         while ($row = $st->fetch()) {
             $timeslots[$row['id']] = [
                 'date' => $row['date'],
-                'time_modifier' => $row['time_modifier']
+                'time_modifier' => $row['modifier']
             ];
         }
         
