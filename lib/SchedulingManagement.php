@@ -183,69 +183,33 @@ class SchedulingManagement {
     }
 
     /**
-     * Enrich schedule data by converting IDs to names
-     * Takes raw schedule from Python service and adds human-readable names
+     * Format schedule data from Python service for display
+     * The Python service already returns enriched data, so we just reformat field names
      */
     public static function enrichScheduleWithNames(array $scheduleData): array {
-        $pdo = self::pdo();
+        // Python service already returns enriched data with names
+        // Just reformat the field names to match what our display expects
+        $formattedSchedule = [];
         
-        // Get all teams with division info
-        $st = $pdo->query('SELECT t.id, t.name, d.name as division_name FROM teams t INNER JOIN divisions d ON t.division_id = d.id');
-        $teams = [];
-        while ($row = $st->fetch()) {
-            $teams[$row['id']] = [
-                'name' => $row['name'],
-                'division' => $row['division_name']
-            ];
-        }
-        
-        // Get all locations
-        $st = $pdo->query('SELECT id, name FROM locations');
-        $locations = [];
-        while ($row = $st->fetch()) {
-            $locations[$row['id']] = $row['name'];
-        }
-        
-        // Get all timeslots
-        $st = $pdo->query('SELECT id, date, modifier FROM timeslots');
-        $timeslots = [];
-        while ($row = $st->fetch()) {
-            $timeslots[$row['id']] = [
-                'date' => $row['date'],
-                'time_modifier' => $row['modifier']
-            ];
-        }
-        
-        // Enrich each game in the schedule
-        $enrichedSchedule = [];
         foreach ($scheduleData['schedule'] ?? [] as $game) {
-            $timeslotId = $game['timeslot_id'] ?? null;
-            $locationId = $game['location_id'] ?? null;
-            $divisionId = $game['division_id'] ?? null;
-            $teamAId = $game['team_a_id'] ?? null;
-            $teamBId = $game['team_b_id'] ?? null;
-            
-            $enrichedGame = [
-                'timeslot_id' => $timeslotId,
-                'location_id' => $locationId,
-                'division_id' => $divisionId,
-                'team_a_id' => $teamAId,
-                'team_b_id' => $teamBId,
-                'weight' => $game['weight'] ?? null,
-                'date' => $timeslots[$timeslotId]['date'] ?? 'Unknown',
-                'time_modifier' => $timeslots[$timeslotId]['time_modifier'] ?? '',
-                'location_name' => $locations[$locationId] ?? 'Unknown Location',
-                'team_a_name' => $teams[$teamAId]['name'] ?? 'Unknown Team',
-                'team_b_name' => $teams[$teamBId]['name'] ?? 'Unknown Team',
-                'division_name' => $teams[$teamAId]['division'] ?? 'Unknown Division'
+            $formattedSchedule[] = [
+                'date' => $game['date'] ?? '',
+                'time_modifier' => $game['time_modifier'] ?? '',
+                'location_id' => $game['location_id'] ?? null,
+                'location_name' => $game['location'] ?? 'Unknown Location',
+                'division_id' => $game['division_id'] ?? null,
+                'division_name' => $game['division'] ?? 'Unknown Division',
+                'team_a_id' => $game['team_a_id'] ?? null,
+                'team_a_name' => $game['team_a'] ?? 'Unknown Team',
+                'team_b_id' => $game['team_b_id'] ?? null,
+                'team_b_name' => $game['team_b'] ?? 'Unknown Team',
+                'weight' => $game['weight'] ?? null
             ];
-            
-            $enrichedSchedule[] = $enrichedGame;
         }
         
         return [
             'success' => true,
-            'schedule' => $enrichedSchedule,
+            'schedule' => $formattedSchedule,
             'metadata' => $scheduleData['metadata'] ?? [],
             'warnings' => $scheduleData['warnings'] ?? []
         ];
