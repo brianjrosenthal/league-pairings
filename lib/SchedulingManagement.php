@@ -116,8 +116,9 @@ class SchedulingManagement {
      * Returns the raw JSON response from the service
      */
     public static function callPythonScheduler(string $startDate, string $endDate, string $algorithm = 'greedy'): array {
-        // Python service URL
-        $url = 'http://localhost:8000/schedule';
+        // Python service URL (port configured in config.local.php)
+        $port = defined('SCHEDULING_SERVICE_PORT') ? SCHEDULING_SERVICE_PORT : 5001;
+        $url = 'http://localhost:' . $port . '/schedule';
         
         // Build query parameters
         $params = http_build_query([
@@ -152,7 +153,7 @@ class SchedulingManagement {
                 'error' => 'Failed to connect to Python service',
                 'details' => $error['message'] ?? 'Unknown error'
             ]);
-            throw new RuntimeException('Failed to connect to scheduling service. Please ensure the Python service is running on port 8000.');
+            throw new RuntimeException('Failed to connect to scheduling service. Please ensure the Python service is running on port ' . $port . '.');
         }
         
         $data = json_decode($response, true);

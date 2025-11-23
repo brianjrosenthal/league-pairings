@@ -8,10 +8,7 @@ from datetime import date, datetime
 from typing import Optional
 import logging
 
-try:
-    from config.local import DATABASE_CONFIG, SCHEDULING_CONFIG, API_CONFIG
-except ImportError:
-    from config.local import DATABASE_CONFIG, SCHEDULING_CONFIG, API_CONFIG
+from config_local import DATABASE_CONFIG, SCHEDULING_CONFIG, API_CONFIG
 
 from generate_pairings import ScheduleGenerator
 from utils.exceptions import (

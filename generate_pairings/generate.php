@@ -47,7 +47,7 @@ header_html('Generated Schedule');
         <h3>Troubleshooting</h3>
         <ul>
             <li>Ensure the Python scheduling service is running: <code>cd service && python server.py</code></li>
-            <li>Verify the service is accessible at <code>http://localhost:8000</code></li>
+            <li>Verify the service is accessible at <code>http://localhost:5001</code></li>
             <li>Check that you have teams, timeslots, and location availability set up</li>
         </ul>
     </div>
