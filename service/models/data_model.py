@@ -2,9 +2,9 @@
 Data model for organizing and processing scheduling data.
 """
 
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Tuple
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 class DataModel:
@@ -43,6 +43,13 @@ class DataModel:
         
         # Group teams by division
         self.teams_by_division = self._group_teams_by_division()
+        
+        # Build week and day mappings for scheduling period
+        self.week_mapping = self._build_week_mapping()
+        self.day_mapping = self._build_day_mapping()
+        
+        # Calculate season game counts per team
+        self.team_season_games = self._count_team_season_games()
     
     def _build_tsls(self, location_availability: List[Dict]) -> List[Dict]:
         """
@@ -107,6 +114,86 @@ class DataModel:
             by_division[team["division_id"]].append(team)
         
         return by_division
+    
+    def _build_week_mapping(self) -> Dict[int, Tuple[int, datetime, datetime]]:
+        """
+        Build mapping of timeslot_id to week information.
+        Week is defined as Sunday-Saturday.
+        
+        Returns:
+            Dictionary mapping timeslot_id -> (week_number, week_start, week_end)
+        """
+        if not self.timeslots:
+            return {}
+        
+        # Find the earliest date (should be a Sunday or we'll find the previous Sunday)
+        dates = [ts['date'] for ts in self.timeslots]
+        if isinstance(dates[0], str):
+            dates = [datetime.strptime(d, '%Y-%m-%d').date() if isinstance(d, str) else d for d in dates]
+        
+        min_date = min(dates)
+        
+        # Find the Sunday on or before min_date (week starts on Sunday = day 6 in Python)
+        days_since_sunday = (min_date.weekday() + 1) % 7  # Convert to days since Sunday
+        week_start = min_date - timedelta(days=days_since_sunday)
+        
+        week_mapping = {}
+        week_number = 0
+        
+        for ts in self.timeslots:
+            ts_date = ts['date']
+            if isinstance(ts_date, str):
+                ts_date = datetime.strptime(ts_date, '%Y-%m-%d').date()
+            
+            # Calculate which week this timeslot belongs to
+            days_diff = (ts_date - week_start).days
+            week_num = days_diff // 7
+            
+            # Calculate week boundaries
+            this_week_start = week_start + timedelta(weeks=week_num)
+            this_week_end = this_week_start + timedelta(days=6)
+            
+            week_mapping[ts['timeslot_id']] = (week_num, this_week_start, this_week_end)
+        
+        return week_mapping
+    
+    def _build_day_mapping(self) -> Dict[int, datetime]:
+        """
+        Build mapping of timeslot_id to date.
+        
+        Returns:
+            Dictionary mapping timeslot_id -> date
+        """
+        day_mapping = {}
+        
+        for ts in self.timeslots:
+            ts_date = ts['date']
+            if isinstance(ts_date, str):
+                ts_date = datetime.strptime(ts_date, '%Y-%m-%d').date()
+            
+            day_mapping[ts['timeslot_id']] = ts_date
+        
+        return day_mapping
+    
+    def _count_team_season_games(self) -> Dict[int, int]:
+        """
+        Count total games played by each team this season (from previous_games).
+        
+        Returns:
+            Dictionary mapping team_id -> game_count
+        """
+        game_counts = defaultdict(int)
+        
+        for game in self.previous_games:
+            game_counts[game['team_1_id']] += 1
+            game_counts[game['team_2_id']] += 1
+        
+        # Ensure all teams have an entry (even if 0 games)
+        for team in self.teams:
+            if team['team_id'] not in game_counts:
+                game_counts[team['team_id']] = 0
+        
+        return dict(game_counts)
     
     def get_team_name(self, team_id: int) -> str:
         """Get team name by ID."""

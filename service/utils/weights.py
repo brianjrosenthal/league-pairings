@@ -17,7 +17,8 @@ class WeightCalculator:
         self, 
         teams: List[Dict],
         constraint_checker: ConstraintChecker,
-        config: Dict
+        config: Dict,
+        team_season_games: Dict[int, int] = None
     ):
         """
         Initialize the weight calculator.
@@ -26,10 +27,12 @@ class WeightCalculator:
             teams: List of team dictionaries with id, previous_year_ranking, etc.
             constraint_checker: Constraint checker for previous games
             config: Scheduling configuration parameters
+            team_season_games: Dictionary of team_id -> season game count
         """
         self.teams = teams
         self.constraint_checker = constraint_checker
         self.config = config
+        self.team_season_games = team_season_games or {}
         
         # Build team lookup
         self.team_lookup = {t['team_id']: t for t in teams}
@@ -49,7 +52,7 @@ class WeightCalculator:
             game_date: Proposed game date
             
         Returns:
-            Weight value (higher is better, typically 0.0 to 1.0)
+            Weight value (higher is better, typically 0.0 to 1.0+)
         """
         weight = 1.0
         
@@ -58,6 +61,9 @@ class WeightCalculator:
         
         # Factor 2: Recent play penalty (played recently = lower weight)
         weight *= self._recency_weight(team_a_id, team_b_id, game_date)
+        
+        # Factor 3: Season balance (teams with fewer games get priority)
+        weight *= self._season_balance_weight(team_a_id, team_b_id)
         
         return weight
     
@@ -147,6 +153,44 @@ class WeightCalculator:
         else:
             # Should have been caught by teams_played_recently, but just in case
             return self.config.get('recent_game_penalty', 0.1)
+    
+    def _season_balance_weight(self, team_a_id: int, team_b_id: int) -> float:
+        """
+        Calculate weight based on season game balance.
+        
+        Teams with fewer season games get higher priority.
+        """
+        if not self.team_season_games:
+            return 1.0  # No data, neutral weight
+        
+        games_a = self.team_season_games.get(team_a_id, 0)
+        games_b = self.team_season_games.get(team_b_id, 0)
+        
+        # Calculate average games for this matchup
+        avg_games = (games_a + games_b) / 2.0
+        
+        # Get all team game counts to determine min/max for normalization
+        all_game_counts = list(self.team_season_games.values())
+        if not all_game_counts:
+            return 1.0
+        
+        min_games = min(all_game_counts)
+        max_games = max(all_game_counts)
+        
+        # Avoid division by zero
+        if max_games == min_games:
+            return 1.0
+        
+        # Normalize: teams with fewer games get higher weights
+        # min_games -> weight multiplier from config (e.g., 2.0)
+        # max_games -> weight multiplier of 1.0
+        balance_multiplier = self.config.get('season_balance_weight', 2.0)
+        
+        # Linear interpolation from balance_multiplier (min games) to 1.0 (max games)
+        normalized = (avg_games - min_games) / (max_games - min_games)
+        weight = balance_multiplier - (normalized * (balance_multiplier - 1.0))
+        
+        return weight
     
     def apply_weights_to_games(self, games: List[Dict]) -> List[Dict]:
         """

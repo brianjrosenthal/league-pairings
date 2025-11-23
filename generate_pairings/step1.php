@@ -91,9 +91,9 @@ header_html('Generate Pairings');
         <label>
             <span>Algorithm</span>
             <select name="algorithm">
-                <option value="greedy" selected>Greedy (Fastest, Near-Optimal)</option>
-                <option value="ortools">Google OR-Tools (Fast, Optimal)</option>
-                <option value="ilp">PuLP ILP (Slower, Optimal)</option>
+                <option value="greedy">Greedy (Legacy, Single Game Per Team)</option>
+                <option value="ortools" selected>Multi-Phase OR-Tools (1-3 Games/Week, Recommended)</option>
+                <option value="ilp">PuLP ILP (Legacy, Single Game Per Team)</option>
             </select>
         </label>
         

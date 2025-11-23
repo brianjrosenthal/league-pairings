@@ -115,14 +115,22 @@ class ScheduleGenerator:
             weight_calculator = WeightCalculator(
                 model.teams,
                 constraint_checker,
-                self.config
+                self.config,
+                model.team_season_games
             )
             weighted_games = weight_calculator.apply_weights_to_games(feasible_games)
             
             # Step 6: Run scheduling algorithm
             logger.info(f"Running {algorithm} scheduler...")
-            scheduler = get_scheduler(algorithm)
-            selected_games = scheduler.schedule(weighted_games)
+            if algorithm == 'multi_phase' or algorithm == 'ortools':
+                # Use multi-phase scheduler with weekly/daily constraints
+                from models.multi_phase_scheduler import MultiPhaseORToolsScheduler
+                scheduler = MultiPhaseORToolsScheduler(model, self.config)
+                selected_games = scheduler.schedule(weighted_games)
+            else:
+                # Use legacy schedulers (greedy, ilp)
+                scheduler = get_scheduler(algorithm)
+                selected_games = scheduler.schedule(weighted_games)
             
             logger.info(f"Selected {len(selected_games)} games for schedule")
             

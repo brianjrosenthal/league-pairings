@@ -30,8 +30,18 @@ SCHEDULING_CONFIG = {
     # Maximum ranking difference for optimal matchups
     "ideal_ranking_diff": 5,
     
-    # Default algorithm to use: 'greedy' or 'ilp' (when implemented)
-    "default_algorithm": "greedy"
+    # Weekly game limits per team
+    "min_games_per_week": 1,
+    "max_games_per_week": 3,
+    
+    # Daily game limit per team
+    "max_games_per_day": 1,
+    
+    # Weight multiplier for teams with fewer season games (higher = stronger preference)
+    "season_balance_weight": 2.0,
+    
+    # Default algorithm to use: 'greedy', 'ilp', or 'ortools'
+    "default_algorithm": "ortools"
 }
 
 # API configuration
