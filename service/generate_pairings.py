@@ -53,7 +53,8 @@ class ScheduleGenerator:
         start_date: date,
         end_date: date,
         algorithm: str = "greedy",
-        timeout: int = 120
+        timeout: int = 120,
+        stop_after_phase: Optional[str] = None
     ) -> Dict:
         """
         Generate a complete schedule for the given date range.
@@ -62,6 +63,8 @@ class ScheduleGenerator:
             start_date: Start of scheduling period
             end_date: End of scheduling period
             algorithm: Scheduling algorithm to use ('greedy' or 'ilp')
+            timeout: Maximum time in seconds for solver
+            stop_after_phase: Stop after this phase for debugging (e.g., '1A', '1B', '1C', '2')
             
         Returns:
             Dictionary containing:
@@ -123,10 +126,12 @@ class ScheduleGenerator:
             
             # Step 6: Run scheduling algorithm
             logger.info(f"Running {algorithm} scheduler with {timeout}s timeout...")
+            if stop_after_phase:
+                logger.info(f"Will stop after phase: {stop_after_phase}")
             if algorithm == 'multi_phase' or algorithm == 'ortools':
                 # Use true multi-phase scheduler: Phase 1 (coverage) + Phase 2 (greedy filling)
                 from models.true_multi_phase_scheduler import TrueMultiPhaseScheduler
-                scheduler = TrueMultiPhaseScheduler(model, self.config, timeout)
+                scheduler = TrueMultiPhaseScheduler(model, self.config, timeout, stop_after_phase)
                 selected_games = scheduler.schedule(weighted_games)
             else:
                 # Use legacy schedulers (greedy, ilp)

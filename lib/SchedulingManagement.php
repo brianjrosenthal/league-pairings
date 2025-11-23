@@ -115,16 +115,22 @@ class SchedulingManagement {
      * Start an asynchronous scheduling job
      * Returns the job ID for tracking
      */
-    public static function startAsyncScheduler(string $startDate, string $endDate, string $algorithm = 'greedy', int $timeout = 120): string {
+    public static function startAsyncScheduler(string $startDate, string $endDate, string $algorithm = 'greedy', int $timeout = 120, ?string $stopAfterPhase = null): string {
         $port = defined('SCHEDULING_SERVICE_PORT') ? SCHEDULING_SERVICE_PORT : 5001;
         $url = 'http://localhost:' . $port . '/schedule/start';
         
-        $params = http_build_query([
+        $params = [
             'start_date' => $startDate,
             'end_date' => $endDate,
             'algorithm' => $algorithm,
             'timeout' => $timeout
-        ]);
+        ];
+        
+        if ($stopAfterPhase !== null) {
+            $params['stop_after_phase'] = $stopAfterPhase;
+        }
+        
+        $params = http_build_query($params);
         
         $fullUrl = $url . '?' . $params;
         

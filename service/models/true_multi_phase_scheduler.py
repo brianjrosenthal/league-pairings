@@ -38,7 +38,7 @@ class TrueMultiPhaseScheduler:
     Two-phase scheduler: Coverage optimization + Greedy capacity filling.
     """
     
-    def __init__(self, model: DataModel, config: Dict, timeout: int = 120):
+    def __init__(self, model: DataModel, config: Dict, timeout: int = 120, stop_after_phase: Optional[str] = None):
         """
         Initialize multi-phase scheduler.
         
@@ -46,10 +46,12 @@ class TrueMultiPhaseScheduler:
             model: DataModel with week/day mappings
             config: Scheduling configuration
             timeout: Maximum time in seconds for solver
+            stop_after_phase: Stop after this phase for debugging (e.g., '1A', '1B', '1C', '2')
         """
         self.model = model
         self.config = config
         self.timeout = timeout
+        self.stop_after_phase = stop_after_phase
         
         # Extract config parameters
         self.min_games_per_week = config.get('min_games_per_week', 1)
@@ -117,6 +119,11 @@ class TrueMultiPhaseScheduler:
             
             logger.info(f"Phase 1A: Scheduled {len(phase1a_games)} games")
             
+            # Check if we should stop after Phase 1A
+            if self.stop_after_phase == '1A':
+                logger.info(f"Stopping after Phase 1A as requested")
+                break
+            
             # Phase 1B: Comprehensive optimal (10% of week time)
             phase1b_timeout = int(time_per_week * 0.10)
             logger.info(f"Phase 1B: Comprehensive Optimal ({phase1b_timeout}s)")
@@ -125,6 +132,11 @@ class TrueMultiPhaseScheduler:
             
             logger.info(f"Phase 1B: Scheduled {len(phase1b_games)} additional games")
             
+            # Check if we should stop after Phase 1B
+            if self.stop_after_phase == '1B':
+                logger.info(f"Stopping after Phase 1B as requested")
+                break
+            
             # Phase 1C: Strategic displacement (10% of week time)
             phase1c_timeout = int(time_per_week * 0.10)
             logger.info(f"Phase 1C: Strategic Displacement ({phase1c_timeout}s)")
@@ -132,6 +144,11 @@ class TrueMultiPhaseScheduler:
             all_scheduled_games.extend(phase1c_games)
             
             logger.info(f"Phase 1C: Scheduled {len(phase1c_games)} additional games")
+            
+            # Check if we should stop after Phase 1C
+            if self.stop_after_phase == '1C':
+                logger.info(f"Stopping after Phase 1C as requested")
+                break
             
             # Diagnose unscheduled teams after Phase 1A+1B+1C
             self._diagnose_unscheduled_teams(week_num, week_games)
@@ -144,6 +161,11 @@ class TrueMultiPhaseScheduler:
             
             logger.info(f"Phase 2: Scheduled {len(phase2_games)} additional games")
             logger.info(f"Week {week_num} total: {len(phase1a_games) + len(phase1b_games) + len(phase1c_games) + len(phase2_games)} games")
+            
+            # Check if we should stop after Phase 2
+            if self.stop_after_phase == '2':
+                logger.info(f"Stopping after Phase 2 as requested")
+                break
         
         logger.info(f"\nTotal games scheduled: {len(all_scheduled_games)}")
         return all_scheduled_games

@@ -89,6 +89,28 @@ header_html('Generate Pairings - Review');
         Algorithm: <strong><?= h(ucfirst($algorithm)) ?></strong>
     </p>
     
+    <form method="GET" action="/generate_pairings/generate_async.php" style="margin-bottom: 16px;">
+        <input type="hidden" name="start_date" value="<?= h($startDate) ?>">
+        <input type="hidden" name="end_date" value="<?= h($endDate) ?>">
+        <input type="hidden" name="algorithm" value="<?= h($algorithm) ?>">
+        <input type="hidden" name="timeout" value="<?= h($timeout) ?>">
+        
+        <div style="margin-bottom: 16px;">
+            <label for="stop_after_phase" class="small" style="display: block; margin-bottom: 4px; font-weight: 600;">
+                Stop After Phase (optional - for debugging):
+            </label>
+            <select name="stop_after_phase" id="stop_after_phase" style="width: 100%; max-width: 300px;">
+                <option value="">Run all phases (normal)</option>
+                <option value="1A">Phase 1A - Pure Coverage</option>
+                <option value="1B">Phase 1B - Comprehensive Optimal</option>
+                <option value="1C">Phase 1C - Strategic Displacement</option>
+                <option value="2">Phase 2 - Greedy Filling</option>
+            </select>
+            <p class="small" style="margin-top: 4px; color: #666;">
+                Select a phase to stop after for debugging. Leave as "Run all phases" for normal operation.
+            </p>
+        </div>
+    
     <?php
     $hasWarnings = false;
     foreach ($divisionData as $division) {
@@ -107,14 +129,15 @@ header_html('Generate Pairings - Review');
         </div>
     <?php endif; ?>
     
-    <div class="actions">
-        <a href="/generate_pairings/generate_async.php?start_date=<?= urlencode($startDate) ?>&end_date=<?= urlencode($endDate) ?>&algorithm=<?= urlencode($algorithm) ?>&timeout=<?= urlencode($timeout) ?>" 
-           class="button primary"
-           <?= $timeslotLocationCount === 0 ? 'disabled style="opacity: 0.5; pointer-events: none;"' : '' ?>>
-            Generate Pairings (<?= $timeout ?>s timeout)
-        </a>
-        <a href="/generate_pairings/step1.php" class="button">Cancel</a>
-    </div>
+        <div class="actions">
+            <button type="submit" 
+                    class="button primary"
+                    <?= $timeslotLocationCount === 0 ? 'disabled style="opacity: 0.5;"' : '' ?>>
+                Generate Pairings (<?= $timeout ?>s timeout)
+            </button>
+            <a href="/generate_pairings/step1.php" class="button">Cancel</a>
+        </div>
+    </form>
 </div>
 
 <div class="card">

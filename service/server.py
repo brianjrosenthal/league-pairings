@@ -39,7 +39,7 @@ app = FastAPI(
 job_manager = JobManager("jobs")
 
 
-def run_schedule_generation(job_id: str, start_date: str, end_date: str, algorithm: str, timeout: int = 120):
+def run_schedule_generation(job_id: str, start_date: str, end_date: str, algorithm: str, timeout: int = 120, stop_after_phase: Optional[str] = None):
     """
     Background task to run schedule generation.
     
@@ -49,6 +49,7 @@ def run_schedule_generation(job_id: str, start_date: str, end_date: str, algorit
         end_date: End date string
         algorithm: Algorithm name
         timeout: Optimization timeout in seconds
+        stop_after_phase: Stop after this phase for debugging (e.g., '1A', '1B', '1C', '2')
     """
     try:
         # Update status to running
@@ -88,7 +89,7 @@ def run_schedule_generation(job_id: str, start_date: str, end_date: str, algorit
             }
         )
         
-        result = generator.generate_schedule(start, end, algorithm, timeout)
+        result = generator.generate_schedule(start, end, algorithm, timeout, stop_after_phase)
         
         # Update progress
         job_manager.update_job_status(
@@ -263,6 +264,11 @@ async def start_schedule_generation(
         description="Optimization timeout in seconds",
         ge=5,
         le=600
+    ),
+    stop_after_phase: Optional[str] = Query(
+        None,
+        description="Stop after this phase for debugging (1A, 1B, 1C, or 2)",
+        enum=["1A", "1B", "1C", "2"]
     )
 ):
     """
@@ -274,6 +280,8 @@ async def start_schedule_generation(
     - **start_date**: Beginning of scheduling period (YYYY-MM-DD)
     - **end_date**: End of scheduling period (YYYY-MM-DD)
     - **algorithm**: Scheduling algorithm ('greedy', 'ilp', or 'ortools')
+    - **timeout**: Optimization timeout in seconds
+    - **stop_after_phase**: Stop after this phase for debugging (1A, 1B, 1C, or 2)
     
     Returns:
     - **job_id**: Unique identifier for the job
@@ -316,7 +324,8 @@ async def start_schedule_generation(
             start_date,
             end_date,
             algorithm,
-            timeout
+            timeout,
+            stop_after_phase
         )
         
         logger.info(f"Created job {job_id} for schedule generation")
