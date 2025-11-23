@@ -61,6 +61,7 @@ header {
   gap: 16px;
   padding: 10px 16px;
   flex-wrap: wrap;
+  justify-content: flex-end; /* Align submenu to the right */
 }
 
 .admin-submenu a {
