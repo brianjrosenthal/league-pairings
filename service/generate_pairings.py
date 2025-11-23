@@ -227,11 +227,21 @@ class ScheduleGenerator:
         unscheduled_teams = all_teams - scheduled_teams
         
         if unscheduled_teams:
-            team_names = [model.get_team_name(tid) for tid in unscheduled_teams]
+            # Build list of unscheduled teams with their divisions
+            unscheduled_details = []
+            for tid in unscheduled_teams:
+                team = model.team_lookup.get(tid)
+                if team:
+                    team_name = team['name']
+                    division_name = model.get_division_name(team['division_id'])
+                    unscheduled_details.append(f"{team_name} ({division_name})")
+            
+            # Sort for consistent display
+            unscheduled_details.sort()
+            
             warnings.append(
                 f"{len(unscheduled_teams)} team(s) could not be scheduled: "
-                f"{', '.join(team_names[:5])}"
-                f"{'...' if len(team_names) > 5 else ''}"
+                f"{', '.join(unscheduled_details)}"
             )
         
         # Check division capacity

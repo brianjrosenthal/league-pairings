@@ -204,7 +204,7 @@ header_html('Generated Schedule');
             </p>
             <textarea id="csvOutput" readonly style="width: 100%; height: 400px; font-family: monospace; font-size: 12px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; resize: vertical;"><?php
                 // Generate CSV content
-                echo "Division,Date,Day,Time,Location,Team A,Team B,Weight\n";
+                echo "Date,Day,Division,Time,Location,Team A,Team B,Weight\n";
                 foreach ($schedule['schedule'] as $game) {
                     $date = $game['date'];
                     $dayOfWeek = date('l', strtotime($date));
@@ -218,7 +218,7 @@ header_html('Generated Schedule');
                     $teamB = str_replace('"', '""', $game['team_b_name']);
                     $weight = $game['weight'] !== null ? number_format($game['weight'], 2) : '';
                     
-                    echo "\"{$division}\",\"{$formattedDate}\",\"{$dayOfWeek}\",\"{$time}\",\"{$location}\",\"{$teamA}\",\"{$teamB}\",{$weight}\n";
+                    echo "\"{$formattedDate}\",\"{$dayOfWeek}\",\"{$division}\",\"{$time}\",\"{$location}\",\"{$teamA}\",\"{$teamB}\",{$weight}\n";
                 }
             ?></textarea>
             <div style="margin-top: 12px;">
