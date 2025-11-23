@@ -382,6 +382,8 @@ class TrueMultiPhaseScheduler:
         Returns:
             Games selected for remaining coverage
         """
+        import sys
+        
         try:
             from ortools.sat.python import cp_model
         except ImportError:
@@ -395,6 +397,34 @@ class TrueMultiPhaseScheduler:
                 # Only count games from the current week we're processing
                 scheduled_this_week.add(game['teamA'])
                 scheduled_this_week.add(game['teamB'])
+        
+        # DEBUG: Show unscheduled teams by division
+        all_teams = set()
+        for game in feasible_games:
+            all_teams.add(game['teamA'])
+            all_teams.add(game['teamB'])
+        
+        unscheduled_teams = all_teams - scheduled_this_week
+        
+        if unscheduled_teams:
+            # Group by division
+            teams_by_division = defaultdict(list)
+            for team_id in unscheduled_teams:
+                team_data = self.model.team_lookup.get(team_id)
+                if team_data:
+                    division_id = team_data['division_id']
+                    division_name = team_data.get('division_name', f"Division {division_id}")
+                    team_name = self.model.get_team_name(team_id)
+                    teams_by_division[division_name].append(team_name)
+            
+            sys.stderr.write(f"\nAfter Phase 1A, the following teams do not have games:\n")
+            for division_name in sorted(teams_by_division.keys()):
+                team_names = sorted(teams_by_division[division_name])
+                sys.stderr.write(f"\nDivision \"{division_name}\":\n")
+                for team_name in team_names:
+                    sys.stderr.write(f"  - {team_name}\n")
+            sys.stderr.write("\n")
+            sys.stderr.flush()
         
         # Include ALL games where at least one team is unscheduled THIS WEEK
         # This allows unscheduled teams to play against already-scheduled teams
@@ -1008,29 +1038,16 @@ class TrueMultiPhaseScheduler:
                                 if tsl_week == week_num:
                                     displaced_tsls.append(tsl)
                     
-                    # Show each TSL with its status
-                    for tsl in displaced_tsls:
-                        date = tsl.get('date', 'Unknown')
-                        modifier = tsl.get('modifier', '')
-                        tsl_id = tsl.get('tsl_id')
-                        
-                        # Check if this TSL is taken
-                        if tsl_id in self.used_tsls:
-                            # Find which game is using it
-                            using_game = None
-                            for g in self.scheduled_games:
-                                if g['tsl_id'] == tsl_id:
-                                    using_game = g
-                                    break
-                            
-                            if using_game:
-                                t1_name = self.model.get_team_name(using_game['teamA'])
-                                t2_name = self.model.get_team_name(using_game['teamB'])
-                                sys.stderr.write(f"  - {date} {modifier} (already taken with game between {t1_name} and {t2_name})\n")
-                            else:
-                                sys.stderr.write(f"  - {date} {modifier} (already taken)\n")
-                        else:
+                    # Show only available TSLs
+                    available_tsls_for_team = [tsl for tsl in displaced_tsls if tsl.get('tsl_id') not in self.used_tsls]
+                    
+                    if available_tsls_for_team:
+                        for tsl in available_tsls_for_team:
+                            date = tsl.get('date', 'Unknown')
+                            modifier = tsl.get('modifier', '')
                             sys.stderr.write(f"  - {date} {modifier} (available)\n")
+                    else:
+                        sys.stderr.write(f"  (No available slots)\n")
                     
                     sys.stderr.flush()
                     
