@@ -196,4 +196,94 @@ class PreviousGamesManagement {
         $st->execute([$divisionId]);
         return $st->fetchAll();
     }
+
+    // === Import-specific methods ===
+
+    // Find game by date and teams (for duplicate detection during import)
+    public static function findGameByDateAndTeams(string $date, int $team1Id, int $team2Id): ?array {
+        // Check both team orders since a game could be stored either way
+        $sql = 'SELECT * FROM previous_games 
+                WHERE date = ? 
+                AND ((team_1_id = ? AND team_2_id = ?) OR (team_1_id = ? AND team_2_id = ?))
+                LIMIT 1';
+        
+        $st = self::pdo()->prepare($sql);
+        $st->execute([$date, $team1Id, $team2Id, $team2Id, $team1Id]);
+        $row = $st->fetch();
+        return $row ?: null;
+    }
+
+    // Create game with optional scores (for import)
+    public static function createGameWithOptionalScores(UserContext $ctx, string $date, int $team1Id, int $team2Id, ?int $team1Score, ?int $team2Score): int {
+        self::assertLoggedIn($ctx);
+        
+        // Validation
+        if ($date === '') {
+            throw new InvalidArgumentException('Date is required.');
+        }
+        
+        if ($team1Id <= 0 || $team2Id <= 0) {
+            throw new InvalidArgumentException('Valid teams are required.');
+        }
+        
+        if ($team1Id === $team2Id) {
+            throw new InvalidArgumentException('A team cannot play against itself.');
+        }
+        
+        // Validate scores if provided
+        if ($team1Score !== null && $team1Score < 0) {
+            throw new InvalidArgumentException('Team 1 score must be non-negative.');
+        }
+        
+        if ($team2Score !== null && $team2Score < 0) {
+            throw new InvalidArgumentException('Team 2 score must be non-negative.');
+        }
+
+        $st = self::pdo()->prepare(
+            "INSERT INTO previous_games (date, team_1_id, team_2_id, team_1_score, team_2_score) 
+             VALUES (?, ?, ?, ?, ?)"
+        );
+        $st->execute([$date, $team1Id, $team2Id, $team1Score, $team2Score]);
+        $id = (int)self::pdo()->lastInsertId();
+        
+        self::log('previous_game.create_import', $id, [
+            'date' => $date,
+            'team_1_id' => $team1Id,
+            'team_2_id' => $team2Id,
+            'team_1_score' => $team1Score,
+            'team_2_score' => $team2Score
+        ]);
+        
+        return $id;
+    }
+
+    // Update only scores for existing game (for import)
+    public static function updateGameScores(UserContext $ctx, int $id, ?int $team1Score, ?int $team2Score): bool {
+        self::assertLoggedIn($ctx);
+        
+        // Validate scores if provided
+        if ($team1Score !== null && $team1Score < 0) {
+            throw new InvalidArgumentException('Team 1 score must be non-negative.');
+        }
+        
+        if ($team2Score !== null && $team2Score < 0) {
+            throw new InvalidArgumentException('Team 2 score must be non-negative.');
+        }
+
+        $st = self::pdo()->prepare(
+            'UPDATE previous_games 
+             SET team_1_score = ?, team_2_score = ? 
+             WHERE id = ?'
+        );
+        $ok = $st->execute([$team1Score, $team2Score, $id]);
+        
+        if ($ok) {
+            self::log('previous_game.update_scores_import', $id, [
+                'team_1_score' => $team1Score,
+                'team_2_score' => $team2Score
+            ]);
+        }
+        
+        return $ok;
+    }
 }
