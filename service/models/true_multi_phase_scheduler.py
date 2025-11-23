@@ -24,7 +24,7 @@ Phase 2: Greedy Capacity Filling
 - Allocates ~70% of timeout
 """
 
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 from collections import defaultdict
 import logging
 
