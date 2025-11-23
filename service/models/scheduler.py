@@ -128,6 +128,9 @@ class ILPScheduler(BaseScheduler):
             NoFeasibleGamesError: If no valid schedule can be created
             RuntimeError: If optimization fails
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         if not feasible_games:
             raise NoFeasibleGamesError("No feasible games available to schedule")
         
@@ -138,21 +141,26 @@ class ILPScheduler(BaseScheduler):
                 "PuLP library not installed. Install with: pip install pulp"
             )
         
+        logger.info(f"ILP Scheduler: Starting with {len(feasible_games)} feasible games")
+        
         # Create optimization problem
         prob = pulp.LpProblem("GameScheduling", pulp.LpMaximize)
         
+        logger.info("ILP Scheduler: Creating decision variables...")
         # Decision variables: binary variable for each game
         game_vars = {
             i: pulp.LpVariable(f"game_{i}", cat='Binary')
             for i in range(len(feasible_games))
         }
         
+        logger.info("ILP Scheduler: Setting objective function...")
         # Objective function: maximize total weight
         prob += pulp.lpSum([
             feasible_games[i].get('weight', 0) * game_vars[i]
             for i in range(len(feasible_games))
         ]), "TotalWeight"
         
+        logger.info("ILP Scheduler: Adding team uniqueness constraints...")
         # Constraint 1: Each team plays at most once
         team_games = {}
         for i, game in enumerate(feasible_games):
@@ -173,6 +181,9 @@ class ILPScheduler(BaseScheduler):
                 f"Team_{team_id}_Uniqueness"
             )
         
+        logger.info(f"ILP Scheduler: Added constraints for {len(team_games)} teams")
+        logger.info("ILP Scheduler: Adding TSL uniqueness constraints...")
+        
         # Constraint 2: Each TSL (timeslot-location) hosts at most one game
         tsl_games = {}
         for i, game in enumerate(feasible_games):
@@ -189,6 +200,10 @@ class ILPScheduler(BaseScheduler):
                 f"TSL_{tsl_id}_Uniqueness"
             )
         
+        logger.info(f"ILP Scheduler: Added constraints for {len(tsl_games)} TSLs")
+        logger.info(f"ILP Scheduler: Problem has {len(game_vars)} variables and {len(team_games) + len(tsl_games)} constraints")
+        logger.info(f"ILP Scheduler: Starting solver (timeout: {self.timeout}s)...")
+        
         # Solve the problem
         # Use CBC solver with time limit
         solver = pulp.PULP_CBC_CMD(
@@ -197,6 +212,8 @@ class ILPScheduler(BaseScheduler):
         )
         
         status = prob.solve(solver)
+        
+        logger.info(f"ILP Scheduler: Solver completed with status: {pulp.LpStatus[status]}")
         
         # Check solution status
         if status != pulp.LpStatusOptimal:
