@@ -57,7 +57,8 @@ class TrueMultiPhaseScheduler:
     
     def schedule(self, feasible_games: List[Dict]) -> List[Dict]:
         """
-        Generate schedule using three-phase approach.
+        Generate schedule using week-by-week three-phase approach.
+        Each week runs all three phases, with cross-week memory.
         
         Args:
             feasible_games: List of feasible games (one per team pairing)
@@ -70,31 +71,64 @@ class TrueMultiPhaseScheduler:
         
         logger.info(f"True Multi-Phase: Starting with {len(feasible_games)} feasible games")
         
-        # Phase 1A: Pure coverage optimization (15% of timeout)
-        phase1a_timeout = int(self.timeout * 0.15)
-        logger.info(f"=== PHASE 1A: Pure Coverage ({phase1a_timeout}s) ===")
-        phase1a_games = self._phase1a_pure_coverage(feasible_games, phase1a_timeout)
+        # Group games by week (using first available TSL's week)
+        games_by_week = defaultdict(list)
+        for game in feasible_games:
+            available_tsls = game.get('available_tsls', [game])
+            if available_tsls:
+                # Use first available TSL to determine week
+                first_tsl = available_tsls[0]
+                timeslot_id = first_tsl.get('timeslot_id')
+                if timeslot_id and timeslot_id in self.model.week_mapping:
+                    week_num = self.model.week_mapping[timeslot_id][0]
+                    games_by_week[week_num].append(game)
         
-        logger.info(f"Phase 1A complete: {len(phase1a_games)} games scheduled")
+        if not games_by_week:
+            logger.warning("No games could be mapped to weeks")
+            return []
         
-        # Phase 1B: Optimal remaining coverage (15% of timeout)
-        phase1b_timeout = int(self.timeout * 0.15)
-        logger.info(f"=== PHASE 1B: Optimal Remaining Coverage ({phase1b_timeout}s) ===")
-        phase1b_games = self._phase1b_optimal_remaining(feasible_games, phase1b_timeout)
+        all_weeks = sorted(games_by_week.keys())
+        logger.info(f"Scheduling across {len(all_weeks)} weeks: {all_weeks}")
         
-        logger.info(f"Phase 1B complete: {len(phase1b_games)} additional games scheduled")
+        # Track games scheduled THIS RUN for cross-week memory
+        self.games_this_run = defaultdict(int)  # {team_id: count}
         
-        # Phase 2: Greedy capacity filling (70% of timeout)
-        phase2_timeout = self.timeout - phase1a_timeout - phase1b_timeout
-        logger.info(f"=== PHASE 2: Greedy Capacity Filling ({phase2_timeout}s) ===")
-        phase2_games = self._phase2_greedy_filling(feasible_games, phase2_timeout)
+        # Allocate time per week
+        time_per_week = self.timeout / len(all_weeks) if all_weeks else self.timeout
         
-        logger.info(f"Phase 2 complete: {len(phase2_games)} additional games scheduled")
+        all_scheduled_games = []
         
-        total_games = phase1a_games + phase1b_games + phase2_games
-        logger.info(f"Total games scheduled: {len(total_games)}")
+        for week_num in all_weeks:
+            week_games = games_by_week[week_num]
+            logger.info(f"\n=== WEEK {week_num} ({len(week_games)} candidate games) ===")
+            
+            # Phase 1A: Pure coverage (15% of week time)
+            phase1a_timeout = int(time_per_week * 0.15)
+            logger.info(f"Phase 1A: Pure Coverage ({phase1a_timeout}s)")
+            phase1a_games = self._phase1a_pure_coverage(week_games, phase1a_timeout)
+            all_scheduled_games.extend(phase1a_games)
+            
+            logger.info(f"Phase 1A: Scheduled {len(phase1a_games)} games")
+            
+            # Phase 1B: Optimal remaining (15% of week time)
+            phase1b_timeout = int(time_per_week * 0.15)
+            logger.info(f"Phase 1B: Optimal Remaining ({phase1b_timeout}s)")
+            phase1b_games = self._phase1b_optimal_remaining(week_games, phase1b_timeout)
+            all_scheduled_games.extend(phase1b_games)
+            
+            logger.info(f"Phase 1B: Scheduled {len(phase1b_games)} additional games")
+            
+            # Phase 2: Greedy filling (70% of week time)
+            phase2_timeout = int(time_per_week * 0.70)
+            logger.info(f"Phase 2: Greedy Filling ({phase2_timeout}s)")
+            phase2_games = self._phase2_greedy_filling(week_games, phase2_timeout)
+            all_scheduled_games.extend(phase2_games)
+            
+            logger.info(f"Phase 2: Scheduled {len(phase2_games)} additional games")
+            logger.info(f"Week {week_num} total: {len(phase1a_games) + len(phase1b_games) + len(phase2_games)} games")
         
-        return total_games
+        logger.info(f"\nTotal games scheduled: {len(all_scheduled_games)}")
+        return all_scheduled_games
     
     def _phase1a_pure_coverage(
         self, 
@@ -116,6 +150,30 @@ class TrueMultiPhaseScheduler:
             from ortools.sat.python import cp_model
         except ImportError:
             raise RuntimeError("OR-Tools not installed")
+        
+        # DEBUG: Analyze feasible games
+        all_teams = set()
+        for game in feasible_games:
+            all_teams.add(game['teamA'])
+            all_teams.add(game['teamB'])
+        
+        logger.info(f"Phase 1A: {len(feasible_games)} feasible games for {len(all_teams)} teams")
+        
+        # DEBUG: Log team availability
+        team_game_count = defaultdict(int)
+        team_tsl_options = defaultdict(set)
+        for game in feasible_games:
+            team_game_count[game['teamA']] += 1
+            team_game_count[game['teamB']] += 1
+            for tsl in game.get('available_tsls', [game]):
+                team_tsl_options[game['teamA']].add(tsl.get('tsl_id'))
+                team_tsl_options[game['teamB']].add(tsl.get('tsl_id'))
+        
+        for team_id in sorted(all_teams):
+            games_this_run = self.games_this_run.get(team_id, 0)
+            logger.debug(f"  Team {team_id}: {team_game_count[team_id]} feasible games, "
+                        f"{len(team_tsl_options[team_id])} TSL options, "
+                        f"{games_this_run} games this run")
         
         model = cp_model.CpModel()
         
@@ -170,12 +228,19 @@ class TrueMultiPhaseScheduler:
             model.Add(sum(game_vars[i] for i in game_indices) >= 1).OnlyEnforceIf(coverage_var)
             model.Add(sum(game_vars[i] for i in game_indices) == 0).OnlyEnforceIf(coverage_var.Not())
         
-        # Maximize: ONLY team coverage (no weights!)
+        # Maximize: Team coverage with priority for teams that haven't played THIS RUN
         objective_terms = []
         
-        # Pure coverage: only count teams that play
-        for coverage_var in team_coverage.values():
-            objective_terms.append(coverage_var)
+        # Prioritize teams based on games THIS RUN
+        for team_id, coverage_var in team_coverage.items():
+            games_this_run = self.games_this_run.get(team_id, 0)
+            
+            if games_this_run == 0:
+                # Never played in this run = highest priority
+                objective_terms.append(1000 * coverage_var)
+            else:
+                # Already played = lower priority (but still try to cover)
+                objective_terms.append(coverage_var)
         
         model.Maximize(sum(objective_terms))
         
@@ -189,6 +254,15 @@ class TrueMultiPhaseScheduler:
         if status not in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
             logger.warning(f"Phase 1A failed with status: {solver.StatusName(status)}")
             return []
+        
+        # DEBUG: Analyze solution
+        scheduled_teams = set()
+        unscheduled_teams = set(all_teams)
+        used_tsls_in_solution = set()
+        
+        logger.info(f"Phase 1A Solver: {solver.StatusName(status)}, "
+                   f"Objective: {solver.ObjectiveValue()}, "
+                   f"Time: {solver.WallTime()}s")
         
         # Extract solution
         selected_games = []
@@ -216,9 +290,36 @@ class TrueMultiPhaseScheduler:
                     
                     selected_games.append(game_copy)
                     
+                    # DEBUG: Track which teams were scheduled
+                    scheduled_teams.add(game['teamA'])
+                    scheduled_teams.add(game['teamB'])
+                    unscheduled_teams.discard(game['teamA'])
+                    unscheduled_teams.discard(game['teamB'])
+                    used_tsls_in_solution.add(assigned_tsl['tsl_id'])
+                    
                     # Track usage
                     self.used_tsls.add(assigned_tsl['tsl_id'])
                     self._track_game(game_copy)
+        
+        # DEBUG: Report unscheduled teams and analyze why
+        if unscheduled_teams:
+            logger.warning(f"Phase 1A left {len(unscheduled_teams)} teams unscheduled: {sorted(unscheduled_teams)}")
+            
+            # For each unscheduled team, analyze what went wrong
+            for team_id in sorted(unscheduled_teams):
+                team_feasible_games = [g for g in feasible_games if g['teamA'] == team_id or g['teamB'] == team_id]
+                logger.debug(f"  Team {team_id} had {len(team_feasible_games)} feasible games")
+                
+                # Check if TSLs for their games were taken
+                team_tsls = set()
+                for game in team_feasible_games:
+                    for tsl in game.get('available_tsls', [game]):
+                        team_tsls.add(tsl['tsl_id'])
+                
+                taken_tsls = team_tsls & used_tsls_in_solution
+                logger.debug(f"    {len(taken_tsls)} of their {len(team_tsls)} TSL options were used by other teams")
+        else:
+            logger.info("Phase 1A: All teams scheduled successfully!")
         
         return selected_games
     
@@ -494,19 +595,26 @@ class TrueMultiPhaseScheduler:
         return True
     
     def _track_game(self, game: Dict):
-        """Track a scheduled game for constraint checking."""
+        """Track a scheduled game for constraint checking and cross-week memory."""
         self.scheduled_games.append(game)
         
         team_a = game['teamA']
         team_b = game['teamB']
         timeslot_id = game['timeslot_id']
         
+        # Track weekly game counts
         if timeslot_id in self.model.week_mapping:
             week_num = self.model.week_mapping[timeslot_id][0]
             self.team_weekly_games[week_num][team_a] += 1
             self.team_weekly_games[week_num][team_b] += 1
         
+        # Track daily game counts
         if timeslot_id in self.model.day_mapping:
             day = self.model.day_mapping[timeslot_id]
             self.team_daily_games[day][team_a] += 1
             self.team_daily_games[day][team_b] += 1
+        
+        # Track games THIS RUN for cross-week memory
+        # This ensures Week 2 knows which teams got games in Week 1
+        self.games_this_run[team_a] += 1
+        self.games_this_run[team_b] += 1
