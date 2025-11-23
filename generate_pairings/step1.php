@@ -1,0 +1,89 @@
+<?php
+require_once __DIR__ . '/../partials.php';
+require_once __DIR__ . '/../lib/SchedulingManagement.php';
+Application::init();
+require_login();
+
+$me = current_user();
+
+// Get system statistics
+$stats = SchedulingManagement::getSystemStats();
+
+// Default dates (next 7 days)
+$defaultStartDate = date('Y-m-d');
+$defaultEndDate = date('Y-m-d', strtotime('+7 days'));
+
+header_html('Generate Pairings');
+?>
+
+<h2>Generate Game Pairings</h2>
+
+<div class="card" style="margin-bottom: 24px;">
+    <h3>System Overview</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 12px;">
+        <div>
+            <div class="small" style="color: #666;">Teams</div>
+            <div style="font-size: 24px; font-weight: 600; margin-top: 4px;">
+                <?= $stats['team_count'] ?>
+            </div>
+            <div class="small" style="margin-top: 4px;">
+                Across <?= $stats['division_count'] ?> <?= $stats['division_count'] === 1 ? 'division' : 'divisions' ?>
+                <?php if ($me['is_admin']): ?>
+                    &middot; <a href="/teams/">Manage Teams</a>
+                <?php endif; ?>
+            </div>
+        </div>
+        
+        <div>
+            <div class="small" style="color: #666;">Locations</div>
+            <div style="font-size: 24px; font-weight: 600; margin-top: 4px;">
+                <?= $stats['location_count'] ?>
+            </div>
+            <?php if ($me['is_admin']): ?>
+                <div class="small" style="margin-top: 4px;">
+                    <a href="/locations/">Manage Locations</a>
+                </div>
+            <?php endif; ?>
+        </div>
+        
+        <div>
+            <div class="small" style="color: #666;">Previous Games This Season</div>
+            <div style="font-size: 24px; font-weight: 600; margin-top: 4px;">
+                <?= $stats['previous_games_count'] ?>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>Schedule Configuration</h3>
+    <p class="small" style="margin-bottom: 16px;">
+        Specify the time period over which you would like to generate the next set of pairings.
+    </p>
+    
+    <form method="get" action="/generate_pairings/step2.php" class="stack">
+        <label>
+            <span>Start Date</span>
+            <input type="date" name="start_date" value="<?= h($defaultStartDate) ?>" required>
+        </label>
+        
+        <label>
+            <span>End Date</span>
+            <input type="date" name="end_date" value="<?= h($defaultEndDate) ?>" required>
+        </label>
+        
+        <label>
+            <span>Algorithm</span>
+            <select name="algorithm">
+                <option value="greedy" selected>Greedy (Fast, Good Results)</option>
+                <option value="ilp" disabled>ILP Optimization (Coming Soon)</option>
+            </select>
+        </label>
+        
+        <div class="actions">
+            <button type="submit" class="button primary">Continue to Review</button>
+        </div>
+    </form>
+</div>
+
+<?php footer_html(); ?>
