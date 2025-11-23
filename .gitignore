@@ -8,3 +8,15 @@ service/config_local.py
 *.sw*
 /cache/
 /logs/
+
+# Python
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+
+# Job files
+/service/jobs/

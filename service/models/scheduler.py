@@ -253,12 +253,12 @@ class ORToolsScheduler(BaseScheduler):
     than PuLP, especially for large-scale scheduling.
     """
     
-    def __init__(self, timeout: int = 20):
+    def __init__(self, timeout: int = 60):
         """
         Initialize OR-Tools scheduler.
         
         Args:
-            timeout: Maximum time in seconds for solver (default: 20)
+            timeout: Maximum time in seconds for solver (default: 60)
         """
         self.timeout = timeout
     
