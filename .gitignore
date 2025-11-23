@@ -4,6 +4,7 @@
 .env
 .DS_Store
 config.local.php
+service/config.local.py
 *.sw*
 /cache/
 /logs/

@@ -1,0 +1,44 @@
+"""
+Example configuration file for the scheduling service.
+
+INSTRUCTIONS:
+1. Copy this file to config.local.py
+2. Update the values with your actual database credentials
+3. config.local.py is gitignored and will not be committed
+
+This follows the same pattern as config.local.php.example in the PHP application.
+"""
+
+# Database configuration
+DATABASE_CONFIG = {
+    "host": "localhost",
+    "user": "your_database_user",
+    "password": "your_database_password",
+    "database": "your_database_name",
+    "charset": "utf8mb4",
+    "use_pure": True
+}
+
+# Scheduling algorithm parameters
+SCHEDULING_CONFIG = {
+    # Number of weeks to look back when checking if teams played recently
+    "recent_games_weeks": 3,
+    
+    # Weight penalty for teams that played recently (0.0 to 1.0)
+    "recent_game_penalty": 0.1,
+    
+    # Maximum ranking difference for optimal matchups
+    "ideal_ranking_diff": 5,
+    
+    # Default algorithm to use: 'greedy' or 'ilp' (when implemented)
+    "default_algorithm": "greedy"
+}
+
+# API configuration
+API_CONFIG = {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "debug": False,
+    "title": "League Pairings API",
+    "description": "API for generating optimal game schedules"
+}

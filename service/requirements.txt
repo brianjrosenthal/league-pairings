@@ -1,0 +1,15 @@
+# Core dependencies for the league scheduling service
+
+# Web framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# Database
+mysql-connector-python==8.2.0
+
+# Utilities
+python-dateutil==2.8.2
+
+# Future optimization (optional)
+# pulp==2.7.0  # Uncomment when implementing ILP scheduler
+# scipy==1.11.4  # Uncomment for advanced optimization
