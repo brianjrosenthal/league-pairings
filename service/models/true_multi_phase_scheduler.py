@@ -1063,7 +1063,56 @@ class TrueMultiPhaseScheduler:
                                 break
                     
                     if not swap_game:
-                        sys.stderr.write(f"  ✗ Cannot swap: No feasible game between {unscheduled_team_name} and {kept_team_name}\n\n")
+                        sys.stderr.write(f"  ✗ Cannot swap: No feasible game between {unscheduled_team_name} and {kept_team_name}\n")
+                        
+                        # Show all other teams in this division and their available timeslots
+                        # to help diagnose why displacement isn't possible
+                        excluded_teams = {unscheduled_team, displaced_team, kept_team}
+                        
+                        # Get all teams in this division
+                        division_teams = set()
+                        for game in feasible_games:
+                            team_a_data = self.model.team_lookup.get(game['teamA'])
+                            team_b_data = self.model.team_lookup.get(game['teamB'])
+                            if team_a_data and team_a_data['division_id'] == unscheduled_division:
+                                division_teams.add(game['teamA'])
+                            if team_b_data and team_b_data['division_id'] == unscheduled_division:
+                                division_teams.add(game['teamB'])
+                        
+                        other_teams = division_teams - excluded_teams
+                        
+                        if other_teams:
+                            sys.stderr.write(f"\n  Other teams in Division \"{division_name}\" and their available timeslots:\n")
+                            
+                            for other_team_id in sorted(other_teams):
+                                other_team_name = self.model.get_team_name(other_team_id)
+                                
+                                # Get all available (unoccupied) timeslots for this team (games with displaced_team)
+                                team_available_slots = []
+                                for game in feasible_games:
+                                    if (game['teamA'] == displaced_team and game['teamB'] == other_team_id) or \
+                                       (game['teamA'] == other_team_id and game['teamB'] == displaced_team):
+                                        # Check available TSLs for this week
+                                        for tsl in game.get('available_tsls', [game]):
+                                            tsl_id = tsl.get('tsl_id')
+                                            timeslot_id = tsl.get('timeslot_id')
+                                            
+                                            # Only include TSLs that are:
+                                            # 1. In the correct week
+                                            # 2. Not already used/occupied
+                                            if timeslot_id and timeslot_id in self.model.week_mapping:
+                                                tsl_week = self.model.week_mapping[timeslot_id][0]
+                                                if tsl_week == week_num and tsl_id and tsl_id not in self.used_tsls:
+                                                    date = tsl.get('date', 'Unknown')
+                                                    modifier = tsl.get('modifier', '')
+                                                    team_available_slots.append(f"{date} {modifier}")
+                                
+                                if team_available_slots:
+                                    sys.stderr.write(f"    {other_team_name}: {', '.join(team_available_slots)}\n")
+                                else:
+                                    sys.stderr.write(f"    {other_team_name}: (no available timeslots with {displaced_team_name})\n")
+                        
+                        sys.stderr.write("\n")
                         sys.stderr.flush()
                         continue
                     
