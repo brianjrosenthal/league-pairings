@@ -778,7 +778,10 @@ class TrueMultiPhaseScheduler:
                 break
             
             # Get this team's division
-            unscheduled_division = self.model.get_team_division(unscheduled_team)
+            unscheduled_team_data = self.model.team_lookup.get(unscheduled_team)
+            if not unscheduled_team_data:
+                continue
+            unscheduled_division = unscheduled_team_data['division_id']
             
             # Find potential games for this unscheduled team
             candidate_games = [
@@ -807,15 +810,22 @@ class TrueMultiPhaseScheduler:
                     scheduled_team_b = scheduled_game['teamB']
                     
                     # Check if either team in scheduled game is in same division as unscheduled team
-                    team_a_division = self.model.get_team_division(scheduled_team_a)
-                    team_b_division = self.model.get_team_division(scheduled_team_b)
+                    team_a_data = self.model.team_lookup.get(scheduled_team_a)
+                    team_b_data = self.model.team_lookup.get(scheduled_team_b)
+                    
+                    if not team_a_data or not team_b_data:
+                        continue
+                    
+                    team_a_division = team_a_data['division_id']
+                    team_b_division = team_b_data['division_id']
                     
                     if team_a_division != unscheduled_division and team_b_division != unscheduled_division:
                         continue
                     
                     # Try displacing one of the teams
                     for displaced_team in [scheduled_team_a, scheduled_team_b]:
-                        if self.model.get_team_division(displaced_team) != unscheduled_division:
+                        displaced_team_data = self.model.team_lookup.get(displaced_team)
+                        if not displaced_team_data or displaced_team_data['division_id'] != unscheduled_division:
                             continue
                         
                         kept_team = scheduled_team_b if displaced_team == scheduled_team_a else scheduled_team_a
