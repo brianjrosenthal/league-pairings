@@ -32,7 +32,7 @@ class ApplicationUI {
      */
     public static function jsScript(string $path): string {
         $url = self::staticResourceUrl($path);
-        return '<script src="' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '"></script>';
+        return '<script src="' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '">';
     }
     
     public static function headerHtml(string $title): void {
@@ -44,28 +44,12 @@ class ApplicationUI {
             return $active ? '<strong>'.$a.'</strong>' : $a;
         };
 
-        // Build nav (left/right groups)
+        // Build main nav (left/right groups)
         $navLeft = [];
         $navRight = [];
+        
         if ($u) {
             $navLeft[] = $link('/index.php','Home');
-            $navLeft[] = $link('/divisions/','Divisions');
-            $navLeft[] = $link('/teams/','Teams');
-            $navLeft[] = $link('/locations/','Locations');
-            $navLeft[] = $link('/timeslots/','Timeslots');
-            
-            // Admin menu goes on the right side
-            if (!empty($u['is_admin'])) {
-                $navRight[] = '<div class="nav-admin-wrap">'
-                            . '<a href="#" id="adminToggle" class="nav-admin-link" aria-expanded="false">Admin</a>'
-                            . '<div id="adminMenu" class="admin-menu hidden" role="menu" aria-hidden="true">'
-                            .   '<a href="/admin/users.php" role="menuitem">Users</a>'
-                            .   '<a href="/admin/settings.php" role="menuitem">Settings</a>'
-                            .   '<a href="/admin/activity_log.php" role="menuitem">Activity Log</a>'
-                            .   '<a href="/admin/email_log.php" role="menuitem">Email Log</a>'
-                            . '</div>'
-                            . '</div>';
-            }
             
             // Profile photo with dropdown menu
             $initials = strtoupper(substr((string)($u['first_name'] ?? ''),0,1).substr((string)($u['last_name'] ?? ''),0,1));
@@ -102,32 +86,45 @@ class ApplicationUI {
         echo '</head><body>';
         echo '<header><h1><a href="/index.php">'.h($siteTitle).'</a></h1><nav>'.$navHtml.'</nav></header>';
 
-        // Dropdown menu scripts
+        // Admin submenu (horizontal bar below main nav, for admins only)
+        if ($u && !empty($u['is_admin'])) {
+            echo '<div class="admin-submenu-wrap">';
+            echo '<div class="admin-submenu-toggle-wrap">';
+            echo '<button id="adminSubmenuToggle" class="admin-submenu-toggle" aria-expanded="false">Admin Menu</button>';
+            echo '</div>';
+            echo '<nav class="admin-submenu" id="adminSubmenu">';
+            echo $link('/divisions/','Divisions');
+            echo $link('/teams/','Teams');
+            echo $link('/locations/','Locations');
+            echo $link('/timeslots/','Timeslots');
+            echo '<span class="admin-submenu-divider"></span>';
+            echo $link('/admin/users.php','Users');
+            echo $link('/admin/settings.php','Settings');
+            echo $link('/admin/activity_log.php','Activity Log');
+            echo $link('/admin/email_log.php','Email Log');
+            echo '</nav>';
+            echo '</div>';
+        }
+
+        // JavaScript for dropdown menus
         if ($u) {
             echo '<script>document.addEventListener("DOMContentLoaded",function(){';
             
             // Avatar dropdown script
             echo 'var at=document.getElementById("avatarToggle");var m=document.getElementById("avatarMenu");function hideAvatar(){if(m){m.classList.add("hidden");m.setAttribute("aria-hidden","true");}if(at){at.setAttribute("aria-expanded","false");}}function toggleAvatar(e){e.preventDefault();if(!m)return;var isHidden=m.classList.contains("hidden");if(isHidden){m.classList.remove("hidden");m.setAttribute("aria-hidden","false");if(at)at.setAttribute("aria-expanded","true");}else{hideAvatar();}}if(at)at.addEventListener("click",toggleAvatar);';
             
-            // Admin dropdown script
+            // Admin submenu toggle (for mobile)
             if (!empty($u['is_admin'])) {
-                echo 'var adminToggle=document.getElementById("adminToggle");var adminMenu=document.getElementById("adminMenu");function hideAdmin(){if(adminMenu){adminMenu.classList.add("hidden");adminMenu.setAttribute("aria-hidden","true");}if(adminToggle){adminToggle.setAttribute("aria-expanded","false");}}function toggleAdmin(e){e.preventDefault();if(!adminMenu)return;var isHidden=adminMenu.classList.contains("hidden");if(isHidden){adminMenu.classList.remove("hidden");adminMenu.setAttribute("aria-hidden","false");if(adminToggle)adminToggle.setAttribute("aria-expanded","true");}else{hideAdmin();}}if(adminToggle)adminToggle.addEventListener("click",toggleAdmin);';
+                echo 'var adminToggle=document.getElementById("adminSubmenuToggle");var adminSubmenu=document.getElementById("adminSubmenu");if(adminToggle&&adminSubmenu){adminToggle.addEventListener("click",function(){var isOpen=adminSubmenu.classList.contains("open");if(isOpen){adminSubmenu.classList.remove("open");adminToggle.setAttribute("aria-expanded","false");}else{adminSubmenu.classList.add("open");adminToggle.setAttribute("aria-expanded","true");}});}';
             }
             
-            // Global click handler to close dropdowns
+            // Global click handler to close avatar dropdown
             echo 'document.addEventListener("click",function(e){';
             echo 'var avatarWrap=at?at.closest(".nav-avatar-wrap"):null;if(avatarWrap&&avatarWrap.contains(e.target))return;hideAvatar();';
-            if (!empty($u['is_admin'])) {
-                echo 'var adminWrap=adminToggle?adminToggle.closest(".nav-admin-wrap"):null;if(adminWrap&&adminWrap.contains(e.target))return;hideAdmin();';
-            }
             echo '});';
             
             // Escape key handler
-            echo 'document.addEventListener("keydown",function(e){if(e.key==="Escape"){hideAvatar();';
-            if (!empty($u['is_admin'])) {
-                echo 'hideAdmin();';
-            }
-            echo '}});';
+            echo 'document.addEventListener("keydown",function(e){if(e.key==="Escape"){hideAvatar();}});';
             
             echo '});</script>';
         }
