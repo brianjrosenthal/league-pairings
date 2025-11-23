@@ -97,6 +97,14 @@ header_html('Generate Pairings');
             </select>
         </label>
         
+        <label>
+            <span>Optimization Timeout (seconds)</span>
+            <input type="number" name="timeout" value="120" min="5" max="600" step="5" required>
+            <div class="small" style="margin-top: 4px; color: #666;">
+                Quick test: 15-30 seconds &middot; Full optimization: 120-300 seconds
+            </div>
+        </label>
+        
         <div class="actions">
             <button type="submit" class="button primary">Continue to Review</button>
         </div>

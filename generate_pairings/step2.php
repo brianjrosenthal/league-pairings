@@ -12,6 +12,7 @@ $me = current_user();
 $startDate = $_GET['start_date'] ?? '';
 $endDate = $_GET['end_date'] ?? '';
 $algorithm = $_GET['algorithm'] ?? 'greedy';
+$timeout = (int)($_GET['timeout'] ?? 120);
 
 // Validate dates
 if (empty($startDate) || empty($endDate)) {
@@ -107,10 +108,10 @@ header_html('Generate Pairings - Review');
     <?php endif; ?>
     
     <div class="actions">
-        <a href="/generate_pairings/generate_async.php?start_date=<?= urlencode($startDate) ?>&end_date=<?= urlencode($endDate) ?>&algorithm=<?= urlencode($algorithm) ?>" 
+        <a href="/generate_pairings/generate_async.php?start_date=<?= urlencode($startDate) ?>&end_date=<?= urlencode($endDate) ?>&algorithm=<?= urlencode($algorithm) ?>&timeout=<?= urlencode($timeout) ?>" 
            class="button primary"
            <?= $timeslotLocationCount === 0 ? 'disabled style="opacity: 0.5; pointer-events: none;"' : '' ?>>
-            Generate Pairings
+            Generate Pairings (<?= $timeout ?>s timeout)
         </a>
         <a href="/generate_pairings/step1.php" class="button">Cancel</a>
     </div>

@@ -52,7 +52,8 @@ class ScheduleGenerator:
         self,
         start_date: date,
         end_date: date,
-        algorithm: str = "greedy"
+        algorithm: str = "greedy",
+        timeout: int = 120
     ) -> Dict:
         """
         Generate a complete schedule for the given date range.
@@ -121,11 +122,11 @@ class ScheduleGenerator:
             weighted_games = weight_calculator.apply_weights_to_games(feasible_games)
             
             # Step 6: Run scheduling algorithm
-            logger.info(f"Running {algorithm} scheduler...")
+            logger.info(f"Running {algorithm} scheduler with {timeout}s timeout...")
             if algorithm == 'multi_phase' or algorithm == 'ortools':
                 # Use multi-phase scheduler with weekly/daily constraints
                 from models.multi_phase_scheduler import MultiPhaseORToolsScheduler
-                scheduler = MultiPhaseORToolsScheduler(model, self.config)
+                scheduler = MultiPhaseORToolsScheduler(model, self.config, timeout)
                 selected_games = scheduler.schedule(weighted_games)
             else:
                 # Use legacy schedulers (greedy, ilp)

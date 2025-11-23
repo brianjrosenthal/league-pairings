@@ -12,6 +12,7 @@ $me = current_user();
 $startDate = $_GET['start_date'] ?? '';
 $endDate = $_GET['end_date'] ?? '';
 $algorithm = $_GET['algorithm'] ?? 'greedy';
+$timeout = (int)($_GET['timeout'] ?? 120);
 $jobId = $_GET['job_id'] ?? '';
 
 // Validate dates
@@ -23,8 +24,8 @@ if (empty($startDate) || empty($endDate)) {
 // If no job ID, start a new job
 if (empty($jobId)) {
     try {
-        $jobId = SchedulingManagement::startAsyncScheduler($startDate, $endDate, $algorithm);
-        header('Location: /generate_pairings/generate_async.php?start_date=' . urlencode($startDate) . '&end_date=' . urlencode($endDate) . '&algorithm=' . urlencode($algorithm) . '&job_id=' . urlencode($jobId));
+        $jobId = SchedulingManagement::startAsyncScheduler($startDate, $endDate, $algorithm, $timeout);
+        header('Location: /generate_pairings/generate_async.php?start_date=' . urlencode($startDate) . '&end_date=' . urlencode($endDate) . '&algorithm=' . urlencode($algorithm) . '&timeout=' . urlencode($timeout) . '&job_id=' . urlencode($jobId));
         exit;
     } catch (RuntimeException $e) {
         $error = $e->getMessage();

@@ -39,7 +39,7 @@ app = FastAPI(
 job_manager = JobManager("jobs")
 
 
-def run_schedule_generation(job_id: str, start_date: str, end_date: str, algorithm: str):
+def run_schedule_generation(job_id: str, start_date: str, end_date: str, algorithm: str, timeout: int = 120):
     """
     Background task to run schedule generation.
     
@@ -48,6 +48,7 @@ def run_schedule_generation(job_id: str, start_date: str, end_date: str, algorit
         start_date: Start date string
         end_date: End date string
         algorithm: Algorithm name
+        timeout: Optimization timeout in seconds
     """
     try:
         # Update status to running
@@ -75,7 +76,7 @@ def run_schedule_generation(job_id: str, start_date: str, end_date: str, algorit
         )
         
         # Generate schedule
-        logger.info(f"Job {job_id}: Generating schedule {start_date} to {end_date}, algorithm={algorithm}")
+        logger.info(f"Job {job_id}: Generating schedule {start_date} to {end_date}, algorithm={algorithm}, timeout={timeout}s")
         generator = ScheduleGenerator(DATABASE_CONFIG, SCHEDULING_CONFIG)
         
         job_manager.update_job_status(
@@ -87,7 +88,7 @@ def run_schedule_generation(job_id: str, start_date: str, end_date: str, algorit
             }
         )
         
-        result = generator.generate_schedule(start, end, algorithm)
+        result = generator.generate_schedule(start, end, algorithm, timeout)
         
         # Update progress
         job_manager.update_job_status(
@@ -256,6 +257,12 @@ async def start_schedule_generation(
         SCHEDULING_CONFIG.get('default_algorithm', 'greedy'),
         description="Scheduling algorithm to use",
         enum=["greedy", "ilp", "ortools"]
+    ),
+    timeout: int = Query(
+        120,
+        description="Optimization timeout in seconds",
+        ge=5,
+        le=600
     )
 ):
     """
@@ -308,7 +315,8 @@ async def start_schedule_generation(
             job_id,
             start_date,
             end_date,
-            algorithm
+            algorithm,
+            timeout
         )
         
         logger.info(f"Created job {job_id} for schedule generation")

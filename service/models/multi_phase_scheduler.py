@@ -46,7 +46,10 @@ class MultiPhaseORToolsScheduler:
     
     def schedule(self, feasible_games: List[Dict]) -> List[Dict]:
         """
-        Generate schedule using two-phase optimization.
+        Generate schedule using rolling weekly optimization.
+        
+        For better performance on longer periods, optimizes one week at a time,
+        treating previous weeks' selections as fixed constraints.
         
         Args:
             feasible_games: List of feasible games with weights
@@ -56,6 +59,42 @@ class MultiPhaseORToolsScheduler:
             
         Raises:
             RuntimeError: If optimization fails
+        """
+        if not feasible_games:
+            raise RuntimeError("No feasible games provided")
+        
+        # Build game metadata first to determine weeks
+        self._build_game_metadata(feasible_games)
+        
+        # Get unique weeks
+        unique_weeks = set()
+        for (week_num, _) in self.games_by_week_team.keys():
+            unique_weeks.add(week_num)
+        
+        if not unique_weeks:
+            raise RuntimeError("No valid week mappings found")
+        
+        weeks = sorted(unique_weeks)
+        logger.info(f"Scheduling across {len(weeks)} weeks: {weeks}")
+        
+        # If only 1-2 weeks, optimize together
+        if len(weeks) <= 2:
+            logger.info("Short period (≤2 weeks), optimizing together")
+            return self._schedule_all_at_once(feasible_games)
+        
+        # For longer periods, use rolling weekly optimization
+        logger.info(f"Long period ({len(weeks)} weeks), using rolling optimization")
+        return self._schedule_rolling_weekly(feasible_games, weeks)
+    
+    def _schedule_all_at_once(self, feasible_games: List[Dict]) -> List[Dict]:
+        """
+        Optimize all weeks together (for short periods).
+        
+        Args:
+            feasible_games: List of feasible games with weights
+            
+        Returns:
+            Selected games forming optimal schedule
         """
         if not feasible_games:
             raise RuntimeError("No feasible games provided")
@@ -252,3 +291,150 @@ class MultiPhaseORToolsScheduler:
         model.Maximize(sum(objective_terms))
         
         logger.info(f"Objective includes {len(self.coverage_vars)} coverage terms + {len(games)} game weight terms")
+    
+    def _schedule_rolling_weekly(self, feasible_games: List[Dict], weeks: List[int]) -> List[Dict]:
+        """
+        Optimize weeks sequentially for better performance on long periods.
+        
+        Args:
+            feasible_games: List of all feasible games
+            weeks: Sorted list of week numbers
+            
+        Returns:
+            Combined selected games from all weeks
+        """
+        try:
+            from ortools.sat.python import cp_model
+        except ImportError:
+            raise RuntimeError("OR-Tools library not installed")
+        
+        all_selected_games = []
+        scheduled_team_games = defaultdict(int)  # Track games per team across all weeks
+        
+        # Calculate per-week timeout
+        timeout_per_week = max(10, self.timeout // len(weeks))
+        logger.info(f"Using {timeout_per_week}s timeout per week")
+        
+        for week_idx, week_num in enumerate(weeks):
+            logger.info(f"Optimizing week {week_num} ({week_idx + 1}/{len(weeks)})")
+            
+            # Filter games for this week
+            week_games = []
+            week_game_indices = []
+            for i, game in enumerate(feasible_games):
+                timeslot_id = game['timeslot_id']
+                if timeslot_id in self.model.week_mapping:
+                    game_week = self.model.week_mapping[timeslot_id][0]
+                    if game_week == week_num:
+                        week_games.append(game)
+                        week_game_indices.append(i)
+            
+            if not week_games:
+                logger.info(f"No games available for week {week_num}, skipping")
+                continue
+            
+            logger.info(f"Week {week_num}: {len(week_games)} feasible games")
+            
+            # Create model for this week
+            model = cp_model.CpModel()
+            game_vars = {}
+            for i in range(len(week_games)):
+                game_vars[i] = model.NewBoolVar(f'w{week_num}_game_{i}')
+            
+            # Add constraints for this week only
+            self._add_week_constraints(model, game_vars, week_games, week_num, scheduled_team_games)
+            
+            # Set objective
+            self._add_week_objective(model, game_vars, week_games, week_num, scheduled_team_games)
+            
+            # Solve this week
+            solver = cp_model.CpSolver()
+            solver.parameters.max_time_in_seconds = timeout_per_week
+            solver.parameters.log_search_progress = False
+            
+            status = solver.Solve(model)
+            
+            if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
+                week_selected = []
+                for i in range(len(week_games)):
+                    if solver.Value(game_vars[i]) == 1:
+                        week_selected.append(week_games[i])
+                        # Update team game counts
+                        scheduled_team_games[week_games[i]['teamA']] += 1
+                        scheduled_team_games[week_games[i]['teamB']] += 1
+                
+                all_selected_games.extend(week_selected)
+                logger.info(f"Week {week_num}: Selected {len(week_selected)} games")
+            else:
+                logger.warning(f"Week {week_num}: No solution found (status: {solver.StatusName(status)})")
+        
+        if not all_selected_games:
+            raise RuntimeError("No games selected across all weeks")
+        
+        logger.info(f"Rolling optimization: Total {len(all_selected_games)} games across {len(weeks)} weeks")
+        return all_selected_games
+    
+    def _add_week_constraints(self, model, game_vars, week_games, week_num, prior_team_games):
+        """Add constraints for a single week optimization."""
+        from ortools.sat.python import cp_model
+        
+        # TSL uniqueness
+        tsl_games = defaultdict(list)
+        for i, game in enumerate(week_games):
+            tsl_games[game['tsl_id']].append(i)
+        
+        for tsl_id, game_indices in tsl_games.items():
+            model.Add(sum(game_vars[i] for i in game_indices) <= 1)
+        
+        # Weekly game limits (for this week)
+        week_team_games = defaultdict(list)
+        for i, game in enumerate(week_games):
+            week_team_games[game['teamA']].append(i)
+            week_team_games[game['teamB']].append(i)
+        
+        for team_id, game_indices in week_team_games.items():
+            model.Add(sum(game_vars[i] for i in game_indices) <= self.max_games_per_week)
+        
+        # Daily game limits
+        day_team_games = defaultdict(list)
+        for i, game in enumerate(week_games):
+            ts_id = game['timeslot_id']
+            if ts_id in self.model.day_mapping:
+                day = self.model.day_mapping[ts_id]
+                day_team_games[(day, game['teamA'])].append(i)
+                day_team_games[(day, game['teamB'])].append(i)
+        
+        for (day, team_id), game_indices in day_team_games.items():
+            model.Add(sum(game_vars[i] for i in game_indices) <= self.max_games_per_day)
+    
+    def _add_week_objective(self, model, game_vars, week_games, week_num, prior_team_games):
+        """Add objective for a single week optimization."""
+        from ortools.sat.python import cp_model
+        
+        objective_terms = []
+        
+        # Coverage: prioritize teams with fewer total season games
+        week_team_games = defaultdict(list)
+        for i, game in enumerate(week_games):
+            week_team_games[game['teamA']].append(i)
+            week_team_games[game['teamB']].append(i)
+        
+        for team_id, game_indices in week_team_games.items():
+            # Coverage indicator
+            coverage_var = model.NewBoolVar(f'cov_t{team_id}')
+            model.Add(sum(game_vars[i] for i in game_indices) >= 1).OnlyEnforceIf(coverage_var)
+            model.Add(sum(game_vars[i] for i in game_indices) == 0).OnlyEnforceIf(coverage_var.Not())
+            
+            # Weight coverage by inverse of prior games (teams with fewer games get higher priority)
+            prior_games = prior_team_games.get(team_id, 0)
+            # Scale: 0 prior games = 10000, each game reduces priority
+            coverage_weight = max(5000, 10000 - (prior_games * 500))
+            objective_terms.append(coverage_weight * coverage_var)
+        
+        # Game quality weights
+        for i, game in enumerate(week_games):
+            weight = game.get('weight', 0)
+            scaled_weight = int(weight * 1000)
+            objective_terms.append(scaled_weight * game_vars[i])
+        
+        model.Maximize(sum(objective_terms))
