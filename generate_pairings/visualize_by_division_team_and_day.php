@@ -74,12 +74,14 @@ header_html('Schedule Visualization');
     $allDates = array_unique($allDates);
     sort($allDates);
     
-    // Build team game tracking: {team_id: {date: {game_num, location, modifier}}}
+    // Build team game tracking: {team_id: {date: {game_num, location, modifier, opponent}}}
     $teamGames = [];
     foreach ($schedule['schedule'] as $game) {
         $date = $game['date'];
         $teamAId = $game['team_a_id'];
         $teamBId = $game['team_b_id'];
+        $teamAName = $game['team_a_name'] ?? '';
+        $teamBName = $game['team_b_name'] ?? '';
         $location = $game['location_name'] ?? '';
         $modifier = $game['time_modifier'] ?? '';
         
@@ -115,12 +117,14 @@ header_html('Schedule Visualization');
         $teamGames[$teamAId]['by_date'][$date] = [
             'game_num' => $gameNumA,
             'location' => $location,
-            'modifier' => $modifier
+            'modifier' => $modifier,
+            'opponent' => $teamBName
         ];
         $teamGames[$teamBId]['by_date'][$date] = [
             'game_num' => $gameNumB,
             'location' => $location,
-            'modifier' => $modifier
+            'modifier' => $modifier,
+            'opponent' => $teamAName
         ];
     }
     
@@ -162,7 +166,10 @@ header_html('Schedule Visualization');
                                     <td style="border: 1px solid #ddd; padding: 6px 4px; background: <?= $bgColor ?>; text-align: center; font-size: 0.85em; line-height: 1.3;">
                                         <?php if ($hasGame): ?>
                                             <div style="white-space: nowrap;">
-                                                <?= h($gameInfo['location']) ?>
+                                                <?= h($gameInfo['location']) ?> vs
+                                            </div>
+                                            <div style="white-space: nowrap;">
+                                                <?= h($gameInfo['opponent']) ?>
                                             </div>
                                             <div style="white-space: nowrap;">
                                                 <?= h($gameInfo['modifier']) ?> (<?= h($gameInfo['game_num']) ?>)
