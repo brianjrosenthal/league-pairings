@@ -137,63 +137,71 @@ header_html('Generated Schedule');
     <?php else: ?>
         
         <?php
-        // Group games by division and date
+        // Group games by division only
         $groupedGames = [];
         foreach ($schedule['schedule'] as $game) {
             $division = $game['division_name'];
-            $date = $game['date'];
             if (!isset($groupedGames[$division])) {
                 $groupedGames[$division] = [];
             }
-            if (!isset($groupedGames[$division][$date])) {
-                $groupedGames[$division][$date] = [];
-            }
-            $groupedGames[$division][$date][] = $game;
+            $groupedGames[$division][] = $game;
         }
         
-        // Sort divisions and dates
+        // Sort divisions
         ksort($groupedGames);
-        foreach ($groupedGames as &$dates) {
-            ksort($dates);
+        
+        // Sort games within each division by date and time
+        foreach ($groupedGames as &$games) {
+            usort($games, function($a, $b) {
+                $dateCompare = strcmp($a['date'], $b['date']);
+                if ($dateCompare !== 0) {
+                    return $dateCompare;
+                }
+                return strcmp($a['time_modifier'] ?? '', $b['time_modifier'] ?? '');
+            });
         }
         ?>
         
-        <?php foreach ($groupedGames as $division => $dates): ?>
+        <?php foreach ($groupedGames as $division => $games): ?>
             <div class="card" style="margin-bottom: 24px;">
                 <h3><?= h($division) ?></h3>
                 
-                <?php foreach ($dates as $date => $games): ?>
-                    <h4 style="margin-top: 16px; margin-bottom: 12px; color: #666;">
-                        <?= h(date('l, F j, Y', strtotime($date))) ?>
-                    </h4>
-                    
-                    <table class="list">
-                        <thead>
+                <table class="list">
+                    <thead>
+                        <tr>
+                            <th>Date &amp; Time</th>
+                            <th>Location</th>
+                            <th>Team A</th>
+                            <th>Team B</th>
+                            <th style="text-align: right;">Weight</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($games as $game): ?>
                             <tr>
-                                <th>Time</th>
-                                <th>Location</th>
-                                <th>Team A</th>
-                                <th>Team B</th>
-                                <th style="text-align: right;">Weight</th>
+                                <td style="white-space: nowrap;">
+                                    <?php
+                                    // Format: "Tue Dec 2, 2025 7:00 PM"
+                                    $timestamp = strtotime($game['date']);
+                                    $dateTime = date('D M j, Y', $timestamp);
+                                    if (!empty($game['time_modifier'])) {
+                                        $dateTime .= ' ' . $game['time_modifier'];
+                                    }
+                                    echo h($dateTime);
+                                    ?>
+                                </td>
+                                <td><?= h($game['location_name']) ?></td>
+                                <td><?= h($game['team_a_name']) ?></td>
+                                <td><?= h($game['team_b_name']) ?></td>
+                                <td style="text-align: right;">
+                                    <?php if ($game['weight'] !== null): ?>
+                                        <?= number_format($game['weight'], 2) ?>
+                                    <?php endif; ?>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($games as $game): ?>
-                                <tr>
-                                    <td style="white-space: nowrap;"><?= h($game['time_modifier'] ?? '') ?></td>
-                                    <td><?= h($game['location_name']) ?></td>
-                                    <td><?= h($game['team_a_name']) ?></td>
-                                    <td><?= h($game['team_b_name']) ?></td>
-                                    <td style="text-align: right;">
-                                        <?php if ($game['weight'] !== null): ?>
-                                            <?= number_format($game['weight'], 2) ?>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                <?php endforeach; ?>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
             </div>
         <?php endforeach; ?>
         
