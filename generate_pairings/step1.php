@@ -9,9 +9,26 @@ $me = current_user();
 // Get system statistics
 $stats = SchedulingManagement::getSystemStats();
 
-// Default dates (next 7 days)
-$defaultStartDate = date('Y-m-d');
-$defaultEndDate = date('Y-m-d', strtotime('+7 days'));
+// Default dates: at least 7 days out, Monday to Sunday
+$sevenDaysOut = strtotime('+7 days');
+
+// Find the next Monday at or after 7 days out
+$dayOfWeek = date('N', $sevenDaysOut); // 1 (Monday) through 7 (Sunday)
+if ($dayOfWeek == 1) {
+    // Already a Monday
+    $nextMonday = $sevenDaysOut;
+} else {
+    // Calculate days until next Monday (8 - dayOfWeek gives us days to Monday)
+    $daysUntilMonday = (8 - $dayOfWeek) % 7;
+    if ($daysUntilMonday == 0) $daysUntilMonday = 7;
+    $nextMonday = strtotime("+{$daysUntilMonday} days", $sevenDaysOut);
+}
+
+// End date is the following Sunday (6 days after Monday)
+$followingSunday = strtotime('+6 days', $nextMonday);
+
+$defaultStartDate = date('Y-m-d', $nextMonday);
+$defaultEndDate = date('Y-m-d', $followingSunday);
 
 header_html('Generate Pairings');
 ?>
