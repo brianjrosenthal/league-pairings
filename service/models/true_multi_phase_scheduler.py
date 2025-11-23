@@ -850,19 +850,29 @@ class TrueMultiPhaseScheduler:
                             self._track_game(scheduled_game)
                             continue
                         
-                        # Can we reschedule the displaced team vs the kept team at a different time?
-                        # Find games for displaced vs kept
+                        # Can we reschedule the displaced team with ANY opponent in the division?
+                        # Find ANY feasible game for the displaced team
                         alternative_games = [
                             g for g in feasible_games
-                            if (g['teamA'] == displaced_team and g['teamB'] == kept_team) or
-                               (g['teamA'] == kept_team and g['teamB'] == displaced_team)
+                            if (g['teamA'] == displaced_team or g['teamB'] == displaced_team)
                         ]
                         
                         rescheduled = False
                         for alt_game in alternative_games:
+                            # Get the opponent for this alternative game
+                            alt_opponent = alt_game['teamB'] if alt_game['teamA'] == displaced_team else alt_game['teamA']
+                            
+                            # Check that this alternative game is in the same week
                             for alt_tsl in alt_game.get('available_tsls', [alt_game]):
                                 alt_tsl_id = alt_tsl['tsl_id']
                                 alt_timeslot_id = alt_tsl['timeslot_id']
+                                
+                                # Verify this TSL is in the same week
+                                if alt_timeslot_id not in self.model.week_mapping:
+                                    continue
+                                alt_week = self.model.week_mapping[alt_timeslot_id][0]
+                                if alt_week != week_num:
+                                    continue
                                 
                                 # Skip the TSL we're trying to use for the unscheduled team
                                 if alt_tsl_id == tsl_id:
@@ -872,8 +882,8 @@ class TrueMultiPhaseScheduler:
                                 if alt_tsl_id in self.used_tsls:
                                     continue
                                 
-                                # Can we schedule displaced vs kept here?
-                                if self._can_schedule_game(displaced_team, kept_team, alt_timeslot_id):
+                                # Can we schedule displaced team with this opponent here?
+                                if self._can_schedule_game(displaced_team, alt_opponent, alt_timeslot_id):
                                     # Success! Do the displacement
                                     
                                     # Schedule unscheduled team vs opponent at original TSL
@@ -889,7 +899,7 @@ class TrueMultiPhaseScheduler:
                                     self._track_game(new_game)
                                     displaced_games.append(new_game)
                                     
-                                    # Schedule displaced vs kept at alternative TSL
+                                    # Schedule displaced team with alternative opponent at alternative TSL
                                     alt_new_game = alt_game.copy()
                                     alt_new_game['timeslot_id'] = alt_timeslot_id
                                     alt_new_game['location_id'] = alt_tsl['location_id']
@@ -902,8 +912,10 @@ class TrueMultiPhaseScheduler:
                                     self._track_game(alt_new_game)
                                     displaced_games.append(alt_new_game)
                                     
+                                    displaced_opponent_name = self.model.get_team_name(alt_opponent)
                                     logger.info(f"Displaced team {displaced_team} from TSL {tsl_id} "
-                                              f"to TSL {alt_tsl_id} to make room for team {unscheduled_team}")
+                                              f"to TSL {alt_tsl_id} (now playing {displaced_opponent_name}) "
+                                              f"to make room for team {unscheduled_team}")
                                     
                                     rescheduled = True
                                     break
