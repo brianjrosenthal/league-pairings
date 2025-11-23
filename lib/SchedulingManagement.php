@@ -79,7 +79,7 @@ class SchedulingManagement {
                     d.name as division_name,
                     t.id as team_id,
                     t.name as team_name,
-                    COUNT(DISTINCT ta.timeslot_id) as available_slots
+                    COUNT(DISTINCT ts.id) as available_slots
                 FROM divisions d
                 INNER JOIN teams t ON d.id = t.division_id
                 LEFT JOIN team_availability ta ON t.id = ta.team_id
