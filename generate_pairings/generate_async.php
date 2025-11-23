@@ -28,6 +28,7 @@ if (empty($jobId)) {
         exit;
     } catch (RuntimeException $e) {
         $error = $e->getMessage();
+        $isCapacityError = strpos($error, 'processing') !== false || strpos($error, 'capacity') !== false;
     }
 }
 
@@ -41,17 +42,41 @@ header_html('Generating Schedule');
 </div>
 
 <?php if (isset($error)): ?>
-    <div class="error" style="margin-bottom: 24px;">
-        <strong>Error:</strong> <?= h($error) ?>
-    </div>
-    
-    <div class="card">
-        <h3>Troubleshooting</h3>
-        <ul>
-            <li>Ensure the Python scheduling service is running: <code>cd service && python server.py</code></li>
-            <li>Verify the service is accessible at <code>http://localhost:5001</code></li>
-        </ul>
-    </div>
+    <?php if (isset($isCapacityError) && $isCapacityError): ?>
+        <div class="announcement" style="margin-bottom: 24px;">
+            <h3 style="margin-top: 0;">⏳ System Busy</h3>
+            <p><?= h($error) ?></p>
+            <p class="small" style="margin-top: 12px;">
+                The system can process up to 2 schedules at once. Other users are currently generating schedules.
+                Please wait a moment and try again.
+            </p>
+        </div>
+        
+        <div class="card">
+            <div class="actions">
+                <a href="/generate_pairings/generate_async.php?start_date=<?= urlencode($startDate) ?>&end_date=<?= urlencode($endDate) ?>&algorithm=<?= urlencode($algorithm) ?>" 
+                   class="button primary">
+                    🔄 Try Again
+                </a>
+                <a href="/generate_pairings/step2.php?start_date=<?= urlencode($startDate) ?>&end_date=<?= urlencode($endDate) ?>&algorithm=<?= urlencode($algorithm) ?>" 
+                   class="button">
+                    ← Back to Review
+                </a>
+            </div>
+        </div>
+    <?php else: ?>
+        <div class="error" style="margin-bottom: 24px;">
+            <strong>Error:</strong> <?= h($error) ?>
+        </div>
+        
+        <div class="card">
+            <h3>Troubleshooting</h3>
+            <ul>
+                <li>Ensure the Python scheduling service is running: <code>cd service && python server.py</code></li>
+                <li>Verify the service is accessible at <code>http://localhost:5001</code></li>
+            </ul>
+        </div>
+    <?php endif; ?>
 <?php else: ?>
     
     <div class="card" style="margin-bottom: 24px;">

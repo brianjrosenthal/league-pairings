@@ -137,7 +137,8 @@ class SchedulingManagement {
             'http' => [
                 'method' => 'POST',
                 'timeout' => 10,
-                'header' => 'Content-Type: application/json'
+                'header' => 'Content-Type: application/json',
+                'ignore_errors' => true  // Allow capturing 4xx/5xx responses
             ]
         ]);
         
@@ -152,10 +153,40 @@ class SchedulingManagement {
             throw new RuntimeException('Failed to connect to scheduling service. Please ensure the Python service is running on port ' . $port . '.');
         }
         
+        // Check HTTP response code
+        $httpCode = 200;
+        if (isset($http_response_header)) {
+            foreach ($http_response_header as $header) {
+                if (preg_match('/^HTTP\/\d\.\d\s+(\d{3})/', $header, $matches)) {
+                    $httpCode = (int)$matches[1];
+                    break;
+                }
+            }
+        }
+        
         $data = json_decode($response, true);
         
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new RuntimeException('Invalid response from scheduling service.');
+        }
+        
+        // Handle capacity error (429 Too Many Requests)
+        if ($httpCode === 429) {
+            $errorMsg = $data['detail'] ?? 'System is currently at capacity. Please try again in a few minutes.';
+            self::log('scheduling.capacity_error', [
+                'message' => $errorMsg
+            ]);
+            throw new RuntimeException($errorMsg);
+        }
+        
+        // Handle other errors
+        if ($httpCode >= 400) {
+            $errorMsg = $data['detail'] ?? 'An error occurred starting the scheduling job.';
+            self::log('scheduling.error', [
+                'http_code' => $httpCode,
+                'error' => $errorMsg
+            ]);
+            throw new RuntimeException($errorMsg);
         }
         
         if (!isset($data['job_id'])) {

@@ -9,26 +9,25 @@ $me = current_user();
 // Get system statistics
 $stats = SchedulingManagement::getSystemStats();
 
-// Default dates: at least 7 days out, Monday to Sunday
-$sevenDaysOut = strtotime('+7 days');
+// Default dates: skip 6 days, then next Sunday to following Thursday
+$sixDaysOut = strtotime('+6 days');
 
-// Find the next Monday at or after 7 days out
-$dayOfWeek = date('N', $sevenDaysOut); // 1 (Monday) through 7 (Sunday)
-if ($dayOfWeek == 1) {
-    // Already a Monday
-    $nextMonday = $sevenDaysOut;
+// Find the next Sunday at or after 6 days out
+$dayOfWeek = date('N', $sixDaysOut); // 1 (Monday) through 7 (Sunday)
+if ($dayOfWeek == 7) {
+    // Already a Sunday
+    $nextSunday = $sixDaysOut;
 } else {
-    // Calculate days until next Monday (8 - dayOfWeek gives us days to Monday)
-    $daysUntilMonday = (8 - $dayOfWeek) % 7;
-    if ($daysUntilMonday == 0) $daysUntilMonday = 7;
-    $nextMonday = strtotime("+{$daysUntilMonday} days", $sevenDaysOut);
+    // Calculate days until next Sunday (7 - dayOfWeek)
+    $daysUntilSunday = 7 - $dayOfWeek;
+    $nextSunday = strtotime("+{$daysUntilSunday} days", $sixDaysOut);
 }
 
-// End date is the following Sunday (6 days after Monday)
-$followingSunday = strtotime('+6 days', $nextMonday);
+// End date is the following Thursday (4 days after Sunday)
+$followingThursday = strtotime('+4 days', $nextSunday);
 
-$defaultStartDate = date('Y-m-d', $nextMonday);
-$defaultEndDate = date('Y-m-d', $followingSunday);
+$defaultStartDate = date('Y-m-d', $nextSunday);
+$defaultEndDate = date('Y-m-d', $followingThursday);
 
 header_html('Generate Pairings');
 ?>

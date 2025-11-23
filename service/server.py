@@ -273,6 +273,15 @@ async def start_schedule_generation(
     - **status**: Initial job status
     """
     try:
+        # Check if system is at capacity
+        if job_manager.is_at_capacity(max_concurrent_jobs=2):
+            running_count = job_manager.count_running_jobs()
+            raise HTTPException(
+                status_code=429,
+                detail=f"System is currently processing {running_count} schedule(s). "
+                       f"Maximum concurrent jobs is 2. Please try again in a few minutes."
+            )
+        
         # Validate dates
         try:
             start = datetime.strptime(start_date, '%Y-%m-%d').date()

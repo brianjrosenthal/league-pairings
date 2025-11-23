@@ -7,7 +7,7 @@ import os
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List
 from enum import Enum
 
 
@@ -154,6 +154,62 @@ class JobManager:
             return True
         except Exception:
             return False
+    
+    def count_running_jobs(self) -> int:
+        """
+        Count the number of jobs currently running or queued.
+        
+        Returns:
+            Number of jobs with status "running" or "queued"
+        """
+        count = 0
+        
+        for job_file in self.jobs_dir.glob("*.json"):
+            try:
+                with open(job_file, 'r') as f:
+                    job_data = json.load(f)
+                
+                status = job_data.get("status")
+                if status in [JobStatus.RUNNING, JobStatus.QUEUED]:
+                    count += 1
+            except Exception:
+                continue
+        
+        return count
+    
+    def is_at_capacity(self, max_concurrent_jobs: int = 2) -> bool:
+        """
+        Check if the system is at capacity for concurrent jobs.
+        
+        Args:
+            max_concurrent_jobs: Maximum number of concurrent jobs allowed
+            
+        Returns:
+            True if at or over capacity, False otherwise
+        """
+        return self.count_running_jobs() >= max_concurrent_jobs
+    
+    def get_running_jobs(self) -> List[Dict[str, Any]]:
+        """
+        Get list of all running or queued jobs.
+        
+        Returns:
+            List of job data dictionaries for running/queued jobs
+        """
+        running_jobs = []
+        
+        for job_file in self.jobs_dir.glob("*.json"):
+            try:
+                with open(job_file, 'r') as f:
+                    job_data = json.load(f)
+                
+                status = job_data.get("status")
+                if status in [JobStatus.RUNNING, JobStatus.QUEUED]:
+                    running_jobs.append(job_data)
+            except Exception:
+                continue
+        
+        return running_jobs
     
     def cleanup_old_jobs(self, max_age_hours: int = 24) -> int:
         """
