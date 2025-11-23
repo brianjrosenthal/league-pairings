@@ -95,12 +95,24 @@ class GreedyScheduler(BaseScheduler):
 
 class ILPScheduler(BaseScheduler):
     """
-    Integer Linear Programming scheduler (placeholder for future implementation).
+    Integer Linear Programming scheduler using PuLP.
     
-    This would use optimization libraries like PuLP or scipy to find
-    the optimal schedule that maximizes total weight while respecting
-    all constraints.
+    This scheduler formulates the game scheduling problem as an Integer Linear Program
+    and finds the mathematically optimal solution that maximizes total weight while
+    respecting all constraints:
+    - Each team plays at most once
+    - Each timeslot-location (TSL) hosts at most one game
+    - All feasibility constraints are maintained
     """
+    
+    def __init__(self, timeout: int = 60):
+        """
+        Initialize ILP scheduler.
+        
+        Args:
+            timeout: Maximum time in seconds for solver (default: 60)
+        """
+        self.timeout = timeout
     
     def schedule(self, feasible_games: List[Dict]) -> List[Dict]:
         """
@@ -113,11 +125,106 @@ class ILPScheduler(BaseScheduler):
             Optimal schedule
             
         Raises:
-            NotImplementedError: This is a placeholder for future work
+            NoFeasibleGamesError: If no valid schedule can be created
+            RuntimeError: If optimization fails
         """
-        raise NotImplementedError(
-            "ILP scheduler not yet implemented. Use 'greedy' algorithm instead."
+        if not feasible_games:
+            raise NoFeasibleGamesError("No feasible games available to schedule")
+        
+        try:
+            import pulp
+        except ImportError:
+            raise RuntimeError(
+                "PuLP library not installed. Install with: pip install pulp"
+            )
+        
+        # Create optimization problem
+        prob = pulp.LpProblem("GameScheduling", pulp.LpMaximize)
+        
+        # Decision variables: binary variable for each game
+        game_vars = {
+            i: pulp.LpVariable(f"game_{i}", cat='Binary')
+            for i in range(len(feasible_games))
+        }
+        
+        # Objective function: maximize total weight
+        prob += pulp.lpSum([
+            feasible_games[i].get('weight', 0) * game_vars[i]
+            for i in range(len(feasible_games))
+        ]), "TotalWeight"
+        
+        # Constraint 1: Each team plays at most once
+        team_games = {}
+        for i, game in enumerate(feasible_games):
+            team_a = game['teamA']
+            team_b = game['teamB']
+            
+            if team_a not in team_games:
+                team_games[team_a] = []
+            if team_b not in team_games:
+                team_games[team_b] = []
+            
+            team_games[team_a].append(i)
+            team_games[team_b].append(i)
+        
+        for team_id, game_indices in team_games.items():
+            prob += (
+                pulp.lpSum([game_vars[i] for i in game_indices]) <= 1,
+                f"Team_{team_id}_Uniqueness"
+            )
+        
+        # Constraint 2: Each TSL (timeslot-location) hosts at most one game
+        tsl_games = {}
+        for i, game in enumerate(feasible_games):
+            tsl_id = game['tsl_id']
+            
+            if tsl_id not in tsl_games:
+                tsl_games[tsl_id] = []
+            
+            tsl_games[tsl_id].append(i)
+        
+        for tsl_id, game_indices in tsl_games.items():
+            prob += (
+                pulp.lpSum([game_vars[i] for i in game_indices]) <= 1,
+                f"TSL_{tsl_id}_Uniqueness"
+            )
+        
+        # Solve the problem
+        # Use CBC solver with time limit
+        solver = pulp.PULP_CBC_CMD(
+            msg=0,  # Suppress solver output
+            timeLimit=self.timeout
         )
+        
+        status = prob.solve(solver)
+        
+        # Check solution status
+        if status != pulp.LpStatusOptimal:
+            if status == pulp.LpStatusInfeasible:
+                raise NoFeasibleGamesError(
+                    "ILP solver found no feasible solution"
+                )
+            elif status == pulp.LpStatusNotSolved:
+                raise RuntimeError(
+                    f"ILP solver did not complete within {self.timeout} seconds"
+                )
+            else:
+                raise RuntimeError(
+                    f"ILP solver failed with status: {pulp.LpStatus[status]}"
+                )
+        
+        # Extract selected games
+        selected_games = []
+        for i, var in game_vars.items():
+            if var.value() == 1:
+                selected_games.append(feasible_games[i])
+        
+        if not selected_games:
+            raise NoFeasibleGamesError(
+                "ILP solver completed but selected no games"
+            )
+        
+        return selected_games
 
 
 def get_scheduler(algorithm: str = "greedy") -> BaseScheduler:

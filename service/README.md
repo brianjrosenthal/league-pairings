@@ -133,21 +133,44 @@ SCHEDULING_CONFIG = {
 
 ## Scheduling Algorithms
 
-### Greedy Scheduler (Current)
+### Greedy Scheduler
 
 The greedy scheduler:
 1. Calculates weights for all feasible games
 2. Sorts games by weight (descending)
 3. Selects games greedily, avoiding team/location conflicts
 4. Fast and produces good results for most scenarios
+5. **Time Complexity**: O(n log n) where n = number of feasible games
 
-### ILP Scheduler (Future)
+**Best for**: Quick scheduling, smaller leagues, when near-optimal is sufficient
 
-The ILP (Integer Linear Programming) scheduler will:
-- Use mathematical optimization to find globally optimal solutions
-- Maximize total weight across all selected games
-- Handle complex constraints more elegantly
-- Require additional dependencies (PuLP or similar)
+### ILP Scheduler
+
+The ILP (Integer Linear Programming) scheduler:
+- Uses mathematical optimization (via PuLP) to find globally optimal solutions
+- Formulates scheduling as an optimization problem with binary decision variables
+- Maximizes total weight across all selected games
+- Guarantees the mathematically optimal solution
+- **Time Complexity**: Variable (typically seconds to minutes)
+
+**Mathematical Formulation**:
+```
+Maximize: Σ(weight[g] × x[g]) for all games g
+Subject to:
+  - Σ(x[g]) ≤ 1 for all games g where team t participates (each team plays once)
+  - Σ(x[g]) ≤ 1 for all games g using TSL (each location-time slot used once)
+  - x[g] ∈ {0, 1} (binary decision variables)
+```
+
+**Best for**: Critical schedules, larger leagues, when optimality is required
+
+**Performance**:
+- Small leagues (10-20 teams): < 1 second
+- Medium leagues (50-100 teams): 1-10 seconds
+- Large leagues (200+ teams): 10-60 seconds
+
+**Configuration**:
+The ILP solver has a 60-second timeout by default. If a solution isn't found within this time, an error is returned.
 
 ## Weight Calculation
 

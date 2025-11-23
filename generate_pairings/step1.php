@@ -93,7 +93,7 @@ header_html('Generate Pairings');
             <span>Algorithm</span>
             <select name="algorithm">
                 <option value="greedy" selected>Greedy (Fast, Good Results)</option>
-                <option value="ilp" disabled>ILP Optimization (Coming Soon)</option>
+                <option value="ilp">ILP Optimization (Optimal, Slower)</option>
             </select>
         </label>
         
