@@ -4,12 +4,17 @@ True Multi-Phase Scheduler
 Phase 1A: Pure Coverage (OR-Tools CP-SAT)
 - Maximizes number of teams that play (ignores weights)
 - Pure coverage optimization
-- Allocates ~15% of timeout
+- Allocates ~10% of timeout
 
-Phase 1B: Optimal Remaining Coverage (OR-Tools CP-SAT)
+Phase 1B: Strategic Displacement
+- For unscheduled teams, try swapping with scheduled teams
+- Targeted within-division swaps
+- Allocates ~10% of timeout
+
+Phase 1C: Optimal Remaining Coverage (OR-Tools CP-SAT)
 - Schedules remaining unscheduled teams optimally
 - Uses weights for quality
-- Allocates ~15% of timeout
+- Allocates ~10% of timeout
 
 Phase 2: Greedy Capacity Filling
 - Fills remaining capacity up to 3 games/week, 1 game/day
@@ -102,23 +107,31 @@ class TrueMultiPhaseScheduler:
             week_games = games_by_week[week_num]
             logger.info(f"\n=== WEEK {week_num} ({len(week_games)} candidate games) ===")
             
-            # Phase 1A: Pure coverage (15% of week time)
-            phase1a_timeout = int(time_per_week * 0.15)
+            # Phase 1A: Pure coverage (10% of week time)
+            phase1a_timeout = int(time_per_week * 0.10)
             logger.info(f"Phase 1A: Pure Coverage ({phase1a_timeout}s)")
             phase1a_games = self._phase1a_pure_coverage(week_games, phase1a_timeout)
             all_scheduled_games.extend(phase1a_games)
             
             logger.info(f"Phase 1A: Scheduled {len(phase1a_games)} games")
             
-            # Phase 1B: Optimal remaining (15% of week time)
-            phase1b_timeout = int(time_per_week * 0.15)
-            logger.info(f"Phase 1B: Optimal Remaining ({phase1b_timeout}s)")
-            phase1b_games = self._phase1b_optimal_remaining(week_games, phase1b_timeout)
+            # Phase 1B: Strategic displacement (10% of week time)
+            phase1b_timeout = int(time_per_week * 0.10)
+            logger.info(f"Phase 1B: Strategic Displacement ({phase1b_timeout}s)")
+            phase1b_games = self._phase1b_strategic_displacement(week_num, week_games, phase1b_timeout)
             all_scheduled_games.extend(phase1b_games)
             
-            logger.info(f"Phase 1B: Scheduled {len(phase1b_games)} additional games")
+            logger.info(f"Phase 1B: Scheduled {len(phase1b_games)} games via displacement")
             
-            # Diagnose unscheduled teams after Phase 1A+1B
+            # Phase 1C: Optimal remaining (10% of week time)
+            phase1c_timeout = int(time_per_week * 0.10)
+            logger.info(f"Phase 1C: Optimal Remaining ({phase1c_timeout}s)")
+            phase1c_games = self._phase1c_optimal_remaining(week_games, phase1c_timeout)
+            all_scheduled_games.extend(phase1c_games)
+            
+            logger.info(f"Phase 1C: Scheduled {len(phase1c_games)} additional games")
+            
+            # Diagnose unscheduled teams after all Phase 1 stages
             self._diagnose_unscheduled_teams(week_num, week_games)
             
             # Phase 2: Greedy filling (70% of week time)
@@ -128,7 +141,7 @@ class TrueMultiPhaseScheduler:
             all_scheduled_games.extend(phase2_games)
             
             logger.info(f"Phase 2: Scheduled {len(phase2_games)} additional games")
-            logger.info(f"Week {week_num} total: {len(phase1a_games) + len(phase1b_games) + len(phase2_games)} games")
+            logger.info(f"Week {week_num} total: {len(phase1a_games) + len(phase1b_games) + len(phase1c_games) + len(phase2_games)} games")
         
         logger.info(f"\nTotal games scheduled: {len(all_scheduled_games)}")
         return all_scheduled_games
@@ -348,7 +361,214 @@ class TrueMultiPhaseScheduler:
         
         return selected_games
     
-    def _phase1b_optimal_remaining(
+    def _phase1b_strategic_displacement(
+        self,
+        week_num: int,
+        feasible_games: List[Dict],
+        timeout: int
+    ) -> List[Dict]:
+        """
+        Phase 1B: Strategic displacement - try to place unscheduled teams by swapping.
+        
+        For each unscheduled team A:
+        - Find scheduled teams in same division that occupy TSLs where A is available
+        - Try swapping A with team B (remove B's game, schedule A vs B's opponent)
+        - Check if B can be immediately rescheduled elsewhere
+        - If yes, make the swap; if no, try next option
+        
+        Args:
+            week_num: Current week number
+            feasible_games: All feasible games for this week
+            timeout: Time limit for this phase
+            
+        Returns:
+            Games scheduled via displacement
+        """
+        import sys
+        import time
+        start_time = time.time()
+        
+        # Get teams scheduled this week
+        scheduled_this_week = set()
+        for game in self.scheduled_games:
+            if game['timeslot_id'] in self.model.week_mapping:
+                game_week = self.model.week_mapping[game['timeslot_id']][0]
+                if game_week == week_num:
+                    scheduled_this_week.add(game['teamA'])
+                    scheduled_this_week.add(game['teamB'])
+        
+        # Get unscheduled teams
+        all_teams = set()
+        for game in feasible_games:
+            all_teams.add(game['teamA'])
+            all_teams.add(game['teamB'])
+        
+        unscheduled = all_teams - scheduled_this_week
+        
+        if not unscheduled:
+            logger.info("Phase 1B: No unscheduled teams to displace")
+            return []
+        
+        logger.info(f"Phase 1B: Attempting displacement for {len(unscheduled)} unscheduled teams")
+        sys.stderr.write(f"\n--- Phase 1B: Strategic Displacement ---\n")
+        sys.stderr.flush()
+        
+        displaced_games = []
+        
+        for team_a_id in sorted(unscheduled):
+            if time.time() - start_time > timeout:
+                logger.info("Phase 1B: Timeout reached")
+                break
+            
+            team_a_name = self.model.get_team_name(team_a_id)
+            
+            # Get team A's division
+            team_a_division = None
+            for game in feasible_games:
+                if game['teamA'] == team_a_id or game['teamB'] == team_a_id:
+                    team_a_division = game['division_id']
+                    break
+            
+            if team_a_division is None:
+                continue
+            
+            # Get team A's available TSLs for this week
+            team_a_tsls = set()
+            for game in feasible_games:
+                if game['teamA'] == team_a_id or game['teamB'] == team_a_id:
+                    for tsl in game.get('available_tsls', [game]):
+                        timeslot_id = tsl.get('timeslot_id')
+                        if timeslot_id and timeslot_id in self.model.week_mapping:
+                            tsl_week = self.model.week_mapping[timeslot_id][0]
+                            if tsl_week == week_num:
+                                team_a_tsls.add((tsl['tsl_id'], timeslot_id))
+            
+            # Find scheduled games in same division at TSLs where A is available
+            displacement_candidates = []
+            for game in self.scheduled_games:
+                if game['division_id'] != team_a_division:
+                    continue
+                
+                game_week = self.model.week_mapping.get(game['timeslot_id'], [None])[0]
+                if game_week != week_num:
+                    continue
+                
+                # Check if this TSL is where team A is available
+                tsl_pair = (game['tsl_id'], game['timeslot_id'])
+                if tsl_pair in team_a_tsls:
+                    displacement_candidates.append(game)
+            
+            if not displacement_candidates:
+                continue
+            
+            sys.stderr.write(f"\nTeam {team_a_id} ({team_a_name}): Trying {len(displacement_candidates)} displacement options...\n")
+            sys.stderr.flush()
+            
+            # Try each displacement candidate
+            for candidate_game in displacement_candidates:
+                team_b_id = candidate_game['teamA'] if candidate_game['teamA'] != team_a_id else candidate_game['teamB']
+                opponent_id = candidate_game['teamB'] if candidate_game['teamA'] != team_b_id else candidate_game['teamA']
+                team_b_name = self.model.get_team_name(team_b_id)
+                opponent_name = self.model.get_team_name(opponent_id)
+                
+                # Step 1: Check if we can schedule A vs opponent at candidate's TSL
+                if not self._can_schedule_game(team_a_id, opponent_id, candidate_game['timeslot_id']):
+                    continue
+                
+                # Step 2: Find if team B can be rescheduled elsewhere
+                team_b_reschedule = None
+                for game in feasible_games:
+                    if game['teamA'] != team_b_id and game['teamB'] != team_b_id:
+                        continue
+                    
+                    other_team = game['teamB'] if game['teamA'] == team_b_id else game['teamA']
+                    
+                    # Try each available TSL for this game
+                    for tsl in game.get('available_tsls', [game]):
+                        timeslot_id = tsl.get('timeslot_id')
+                        tsl_id = tsl.get('tsl_id')
+                        
+                        # Skip if TSL already used
+                        if tsl_id in self.used_tsls:
+                            continue
+                        
+                        # Check if this TSL is in the right week
+                        if timeslot_id not in self.model.week_mapping:
+                            continue
+                        tsl_week = self.model.week_mapping[timeslot_id][0]
+                        if tsl_week != week_num:
+                            continue
+                        
+                        # Check constraints for rescheduling B
+                        if self._can_schedule_game(team_b_id, other_team, timeslot_id):
+                            team_b_reschedule = {
+                                'game': game,
+                                'tsl': tsl,
+                                'opponent': other_team
+                            }
+                            break
+                    
+                    if team_b_reschedule:
+                        break
+                
+                if not team_b_reschedule:
+                    continue
+                
+                # SUCCESS! We can make the swap
+                sys.stderr.write(f"  ✓ SWAP: Removing {team_b_name} vs {opponent_name}, ")
+                sys.stderr.write(f"scheduling {team_a_name} vs {opponent_name}, ")
+                sys.stderr.write(f"rescheduling {team_b_name} vs {self.model.get_team_name(team_b_reschedule['opponent'])}\n")
+                sys.stderr.flush()
+                
+                # Remove the old game
+                self.scheduled_games.remove(candidate_game)
+                self.used_tsls.remove(candidate_game['tsl_id'])
+                self._untrack_game(candidate_game)
+                
+                # Schedule team A vs opponent at the freed TSL
+                new_game_a = {
+                    'teamA': team_a_id,
+                    'teamB': opponent_id,
+                    'teamA_name': team_a_name,
+                    'teamB_name': opponent_name,
+                    'division_id': team_a_division,
+                    'division_name': self.model.get_division_name(team_a_division),
+                    'timeslot_id': candidate_game['timeslot_id'],
+                    'location_id': candidate_game['location_id'],
+                    'location_name': candidate_game['location_name'],
+                    'tsl_id': candidate_game['tsl_id'],
+                    'date': candidate_game['date'],
+                    'modifier': candidate_game['modifier'],
+                    'weight': None
+                }
+                
+                displaced_games.append(new_game_a)
+                self.used_tsls.add(new_game_a['tsl_id'])
+                self._track_game(new_game_a)
+                
+                # Schedule team B's new game
+                reschedule_tsl = team_b_reschedule['tsl']
+                new_game_b = team_b_reschedule['game'].copy()
+                new_game_b['timeslot_id'] = reschedule_tsl['timeslot_id']
+                new_game_b['location_id'] = reschedule_tsl['location_id']
+                new_game_b['location_name'] = reschedule_tsl['location_name']
+                new_game_b['tsl_id'] = reschedule_tsl['tsl_id']
+                new_game_b['date'] = reschedule_tsl['date']
+                new_game_b['modifier'] = reschedule_tsl['modifier']
+                
+                displaced_games.append(new_game_b)
+                self.used_tsls.add(new_game_b['tsl_id'])
+                self._track_game(new_game_b)
+                
+                # Team A is now scheduled, move to next unscheduled team
+                break
+        
+        sys.stderr.write(f"\nPhase 1B: Successfully displaced {len(displaced_games)} games\n\n")
+        sys.stderr.flush()
+        
+        return displaced_games
+    
+    def _phase1c_optimal_remaining(
         self,
         feasible_games: List[Dict],
         timeout: int
@@ -387,10 +607,10 @@ class TrueMultiPhaseScheduler:
                 remaining_games.append(game)
         
         if not remaining_games:
-            logger.info("Phase 1B: All teams already scheduled")
+            logger.info("Phase 1C: All teams already scheduled")
             return []
         
-        logger.info(f"Phase 1B: Considering {len(remaining_games)} games for {len([t for g in remaining_games for t in [g['teamA'], g['teamB']] if t not in scheduled_teams])} unscheduled teams")
+        logger.info(f"Phase 1C: Considering {len(remaining_games)} games for {len([t for g in remaining_games for t in [g['teamA'], g['teamB']] if t not in scheduled_teams])} unscheduled teams")
         
         model = cp_model.CpModel()
         
@@ -492,7 +712,7 @@ class TrueMultiPhaseScheduler:
         status = solver.Solve(model)
         
         if status not in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
-            logger.warning(f"Phase 1B failed with status: {solver.StatusName(status)}")
+            logger.warning(f"Phase 1C failed with status: {solver.StatusName(status)}")
             return []
         
         # Extract solution
@@ -666,6 +886,28 @@ class TrueMultiPhaseScheduler:
         self.games_this_run[team_a] += 1
         self.games_this_run[team_b] += 1
     
+    def _untrack_game(self, game: Dict):
+        """Untrack a game when it's being removed/displaced."""
+        team_a = game['teamA']
+        team_b = game['teamB']
+        timeslot_id = game['timeslot_id']
+        
+        # Untrack weekly game counts
+        if timeslot_id in self.model.week_mapping:
+            week_num = self.model.week_mapping[timeslot_id][0]
+            self.team_weekly_games[week_num][team_a] -= 1
+            self.team_weekly_games[week_num][team_b] -= 1
+        
+        # Untrack daily game counts
+        if timeslot_id in self.model.day_mapping:
+            day = self.model.day_mapping[timeslot_id]
+            self.team_daily_games[day][team_a] -= 1
+            self.team_daily_games[day][team_b] -= 1
+        
+        # Untrack games THIS RUN
+        self.games_this_run[team_a] -= 1
+        self.games_this_run[team_b] -= 1
+    
     def _diagnose_unscheduled_teams(self, week_num: int, feasible_games: List[Dict]):
         """
         Diagnose why teams didn't get scheduled in Phase 1A+1B.
@@ -694,11 +936,11 @@ class TrueMultiPhaseScheduler:
         unscheduled = all_teams - scheduled_this_week
         
         if not unscheduled:
-            sys.stderr.write(f"\n✓ Week {week_num}: All teams scheduled in Phase 1A+1B\n")
+            sys.stderr.write(f"\n✓ Week {week_num}: All teams scheduled in Phase 1 (1A+1B+1C)\n")
             sys.stderr.flush()
             return
         
-        sys.stderr.write(f"\n⚠️  Week {week_num} Diagnostic: {len(unscheduled)} teams unscheduled after Phase 1A+1B\n")
+        sys.stderr.write(f"\n⚠️  Week {week_num} Diagnostic: {len(unscheduled)} teams unscheduled after Phase 1 (1A+1B+1C)\n")
         sys.stderr.write("=" * 80 + "\n")
         sys.stderr.flush()
         
