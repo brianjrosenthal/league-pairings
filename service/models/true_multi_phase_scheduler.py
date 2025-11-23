@@ -861,6 +861,7 @@ class TrueMultiPhaseScheduler:
             Games scheduled through displacement
         """
         import time
+        import sys
         start_time = time.time()
         
         # Find teams still unscheduled this week
@@ -883,7 +884,31 @@ class TrueMultiPhaseScheduler:
             logger.info("Phase 1C: No unscheduled teams, skipping displacement")
             return []
         
+        # Check if there are any unused TSLs for this week
+        week_tsls = set()
+        for game in feasible_games:
+            for tsl in game.get('available_tsls', [game]):
+                if tsl.get('timeslot_id') in self.model.week_mapping:
+                    tsl_week = self.model.week_mapping[tsl['timeslot_id']][0]
+                    if tsl_week == week_num:
+                        week_tsls.add(tsl['tsl_id'])
+        
+        used_week_tsls = set()
+        for game in self.scheduled_games:
+            if game['timeslot_id'] in self.model.week_mapping:
+                game_week = self.model.week_mapping[game['timeslot_id']][0]
+                if game_week == week_num:
+                    used_week_tsls.add(game['tsl_id'])
+        
+        available_tsls = week_tsls - used_week_tsls
+        
+        if not available_tsls:
+            logger.info(f"Phase 1C: No available TSLs for week {week_num}, skipping displacement")
+            logger.info(f"  All {len(week_tsls)} TSLs are already in use")
+            return []
+        
         logger.info(f"Phase 1C: Attempting displacement for {len(unscheduled_teams)} unscheduled teams")
+        logger.info(f"  Week {week_num} has {len(available_tsls)} unused TSLs (out of {len(week_tsls)} total)")
         
         displaced_games = []
         
@@ -899,6 +924,37 @@ class TrueMultiPhaseScheduler:
             if not unscheduled_team_data:
                 continue
             unscheduled_division = unscheduled_team_data['division_id']
+            
+            # DEBUG: Print header for this unscheduled team
+            unscheduled_team_name = self.model.get_team_name(unscheduled_team)
+            division_name = unscheduled_team_data.get('division_name', f"Division {unscheduled_division}")
+            
+            sys.stderr.write(f"\n{'='*80}\n")
+            sys.stderr.write(f"Trying to place: {unscheduled_team_name} (Division \"{division_name}\")\n")
+            sys.stderr.write(f"{'='*80}\n")
+            
+            # Show current games in this division for this week
+            division_games = [
+                g for g in self.scheduled_games
+                if g['timeslot_id'] in self.model.week_mapping
+                and self.model.week_mapping[g['timeslot_id']][0] == week_num
+                and (self.model.team_lookup.get(g['teamA'], {}).get('division_id') == unscheduled_division
+                     or self.model.team_lookup.get(g['teamB'], {}).get('division_id') == unscheduled_division)
+            ]
+            
+            sys.stderr.write(f"\nGames currently in Division \"{division_name}\" for week {week_num}:\n")
+            if division_games:
+                for game in division_games:
+                    location_name = game.get('location_name', 'Unknown')
+                    date = game.get('date', 'Unknown')
+                    modifier = game.get('modifier', '')
+                    team1_name = self.model.get_team_name(game['teamA'])
+                    team2_name = self.model.get_team_name(game['teamB'])
+                    sys.stderr.write(f"  - {location_name}, {date} {modifier}, {team1_name} vs {team2_name}\n")
+            else:
+                sys.stderr.write(f"  (No games scheduled yet in this division for this week)\n")
+            sys.stderr.write("\n")
+            sys.stderr.flush()
             
             # Look for a scheduled game this week that we could displace
             for scheduled_game in list(self.scheduled_games):
@@ -930,6 +986,54 @@ class TrueMultiPhaseScheduler:
                     
                     kept_team = scheduled_team_b if displaced_team == scheduled_team_a else scheduled_team_a
                     
+                    # DEBUG: Show displacement attempt
+                    displaced_team_name = self.model.get_team_name(displaced_team)
+                    kept_team_name = self.model.get_team_name(kept_team)
+                    
+                    sys.stderr.write(f"\nTrying to displace {displaced_team_name}. ")
+                    sys.stderr.write(f"{displaced_team_name} has location availability at the following slots:\n")
+                    
+                    # Get all feasible games for displaced team to show their availability
+                    displaced_team_games = [
+                        g for g in feasible_games
+                        if g['teamA'] == displaced_team or g['teamB'] == displaced_team
+                    ]
+                    
+                    # Collect all TSL options for this team
+                    displaced_tsls = []
+                    for dg in displaced_team_games:
+                        for tsl in dg.get('available_tsls', [dg]):
+                            if tsl.get('timeslot_id') in self.model.week_mapping:
+                                tsl_week = self.model.week_mapping[tsl['timeslot_id']][0]
+                                if tsl_week == week_num:
+                                    displaced_tsls.append(tsl)
+                    
+                    # Show each TSL with its status
+                    for tsl in displaced_tsls:
+                        date = tsl.get('date', 'Unknown')
+                        modifier = tsl.get('modifier', '')
+                        tsl_id = tsl.get('tsl_id')
+                        
+                        # Check if this TSL is taken
+                        if tsl_id in self.used_tsls:
+                            # Find which game is using it
+                            using_game = None
+                            for g in self.scheduled_games:
+                                if g['tsl_id'] == tsl_id:
+                                    using_game = g
+                                    break
+                            
+                            if using_game:
+                                t1_name = self.model.get_team_name(using_game['teamA'])
+                                t2_name = self.model.get_team_name(using_game['teamB'])
+                                sys.stderr.write(f"  - {date} {modifier} (already taken with game between {t1_name} and {t2_name})\n")
+                            else:
+                                sys.stderr.write(f"  - {date} {modifier} (already taken)\n")
+                        else:
+                            sys.stderr.write(f"  - {date} {modifier} (available)\n")
+                    
+                    sys.stderr.flush()
+                    
                     # Find the game between unscheduled_team and kept_team
                     swap_game = None
                     for g in feasible_games:
@@ -942,16 +1046,33 @@ class TrueMultiPhaseScheduler:
                                 break
                     
                     if not swap_game:
+                        sys.stderr.write(f"  ✗ Cannot swap: No feasible game between {unscheduled_team_name} and {kept_team_name}\n\n")
+                        sys.stderr.flush()
                         continue
                     
                     # Check if displacement is viable WITHOUT modifying state
+                    sys.stderr.write(f"\nTrying available timeslots for {displaced_team_name}:\n")
+                    sys.stderr.flush()
+                    
                     swap_result = self._can_perform_displacement(
                         scheduled_game, displaced_team, kept_team,
                         unscheduled_team, swap_game, feasible_games, week_num
                     )
                     
                     if swap_result is None:
+                        sys.stderr.write(f"  ✗ No viable alternatives found for {displaced_team_name}\n\n")
+                        sys.stderr.flush()
                         continue
+                    
+                    # Show success
+                    swap_game_template, alt_game_template, alt_tsl = swap_result
+                    alt_opponent = alt_game_template['teamB'] if alt_game_template['teamA'] == displaced_team else alt_game_template['teamA']
+                    alt_opponent_name = self.model.get_team_name(alt_opponent)
+                    alt_date = alt_tsl.get('date', 'Unknown')
+                    alt_modifier = alt_tsl.get('modifier', '')
+                    
+                    sys.stderr.write(f"  ✓ {alt_date} {alt_modifier}: {alt_opponent_name} is available! Scheduling game then.\n\n")
+                    sys.stderr.flush()
                     
                     # Displacement is viable! Now commit the changes
                     swap_game_template, alt_game_template, alt_tsl = swap_result
