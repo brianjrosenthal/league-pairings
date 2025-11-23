@@ -124,9 +124,9 @@ class ScheduleGenerator:
             # Step 6: Run scheduling algorithm
             logger.info(f"Running {algorithm} scheduler with {timeout}s timeout...")
             if algorithm == 'multi_phase' or algorithm == 'ortools':
-                # Use multi-phase scheduler with weekly/daily constraints
-                from models.multi_phase_scheduler import MultiPhaseORToolsScheduler
-                scheduler = MultiPhaseORToolsScheduler(model, self.config, timeout)
+                # Use true multi-phase scheduler: Phase 1 (coverage) + Phase 2 (greedy filling)
+                from models.true_multi_phase_scheduler import TrueMultiPhaseScheduler
+                scheduler = TrueMultiPhaseScheduler(model, self.config, timeout)
                 selected_games = scheduler.schedule(weighted_games)
             else:
                 # Use legacy schedulers (greedy, ilp)

@@ -217,6 +217,9 @@ class DataModel:
 class FeasibleGameGenerator:
     """
     Generates all feasible games based on constraints.
+    
+    Creates one game per team pairing with list of available TSLs.
+    Scheduler will assign specific TSL during optimization.
     """
     
     def __init__(self, model: DataModel):
@@ -231,6 +234,8 @@ class FeasibleGameGenerator:
     def generate(self) -> List[Dict]:
         """
         Generate all feasible game combinations.
+        
+        Creates ONE game per team pairing, with available TSLs tracked.
         
         Returns:
             List of feasible game dictionaries
@@ -250,30 +255,39 @@ class FeasibleGameGenerator:
                     team_a_id = team_a["team_id"]
                     team_b_id = team_b["team_id"]
                     
-                    # Check each TSL to see if both teams are available
+                    # Find all TSLs where both teams are available
+                    available_tsls = []
                     for tsl in self.model.tsls:
                         timeslot_id = tsl["timeslot_id"]
                         
                         # Both teams must be available at this timeslot
                         if (timeslot_id in self.model.team_availability[team_a_id] and
                             timeslot_id in self.model.team_availability[team_b_id]):
-                            
-                            games.append({
-                                "game_id": game_id,
-                                "teamA": team_a_id,
-                                "teamB": team_b_id,
-                                "teamA_name": team_a["name"],
-                                "teamB_name": team_b["name"],
-                                "division_id": div_id,
-                                "division_name": self.model.get_division_name(div_id),
-                                "timeslot_id": timeslot_id,
-                                "location_id": tsl["location_id"],
-                                "location_name": tsl["location_name"],
-                                "tsl_id": tsl["tsl_id"],
-                                "date": tsl["date"],
-                                "modifier": tsl["modifier"],
-                                "weight": None  # Will be set by WeightCalculator
-                            })
-                            game_id += 1
+                            available_tsls.append(tsl)
+                    
+                    # Only create game if there's at least one available TSL
+                    if available_tsls:
+                        # Create ONE game for this pairing
+                        # Use first available TSL as default (will be optimized)
+                        first_tsl = available_tsls[0]
+                        
+                        games.append({
+                            "game_id": game_id,
+                            "teamA": team_a_id,
+                            "teamB": team_b_id,
+                            "teamA_name": team_a["name"],
+                            "teamB_name": team_b["name"],
+                            "division_id": div_id,
+                            "division_name": self.model.get_division_name(div_id),
+                            "timeslot_id": first_tsl["timeslot_id"],
+                            "location_id": first_tsl["location_id"],
+                            "location_name": first_tsl["location_name"],
+                            "tsl_id": first_tsl["tsl_id"],
+                            "date": first_tsl["date"],
+                            "modifier": first_tsl["modifier"],
+                            "available_tsls": available_tsls,  # Store all options
+                            "weight": None  # Will be set by WeightCalculator
+                        })
+                        game_id += 1
         
         return games
