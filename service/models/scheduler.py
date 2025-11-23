@@ -244,12 +244,153 @@ class ILPScheduler(BaseScheduler):
         return selected_games
 
 
+class ORToolsScheduler(BaseScheduler):
+    """
+    Google OR-Tools CP-SAT scheduler (fastest option).
+    
+    Uses Google's CP-SAT solver which is highly optimized for constraint
+    satisfaction and integer programming problems. Significantly faster
+    than PuLP, especially for large-scale scheduling.
+    """
+    
+    def __init__(self, timeout: int = 60):
+        """
+        Initialize OR-Tools scheduler.
+        
+        Args:
+            timeout: Maximum time in seconds for solver (default: 60)
+        """
+        self.timeout = timeout
+    
+    def schedule(self, feasible_games: List[Dict]) -> List[Dict]:
+        """
+        Use Google OR-Tools to find optimal schedule.
+        
+        Args:
+            feasible_games: List of feasible games with weights
+            
+        Returns:
+            Optimal schedule
+            
+        Raises:
+            NoFeasibleGamesError: If no valid schedule can be created
+            RuntimeError: If optimization fails
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        if not feasible_games:
+            raise NoFeasibleGamesError("No feasible games available to schedule")
+        
+        try:
+            from ortools.sat.python import cp_model
+        except ImportError:
+            raise RuntimeError(
+                "OR-Tools library not installed. Install with: pip install ortools"
+            )
+        
+        logger.info(f"OR-Tools Scheduler: Starting with {len(feasible_games)} feasible games")
+        
+        # Create the model
+        model = cp_model.CpModel()
+        
+        logger.info("OR-Tools Scheduler: Creating decision variables...")
+        # Decision variables: binary variable for each game
+        game_vars = {}
+        for i in range(len(feasible_games)):
+            game_vars[i] = model.NewBoolVar(f'game_{i}')
+        
+        logger.info("OR-Tools Scheduler: Adding team uniqueness constraints...")
+        # Constraint 1: Each team plays at most once
+        team_games = {}
+        for i, game in enumerate(feasible_games):
+            team_a = game['teamA']
+            team_b = game['teamB']
+            
+            if team_a not in team_games:
+                team_games[team_a] = []
+            if team_b not in team_games:
+                team_games[team_b] = []
+            
+            team_games[team_a].append(i)
+            team_games[team_b].append(i)
+        
+        for team_id, game_indices in team_games.items():
+            model.Add(sum(game_vars[i] for i in game_indices) <= 1)
+        
+        logger.info(f"OR-Tools Scheduler: Added constraints for {len(team_games)} teams")
+        logger.info("OR-Tools Scheduler: Adding TSL uniqueness constraints...")
+        
+        # Constraint 2: Each TSL hosts at most one game
+        tsl_games = {}
+        for i, game in enumerate(feasible_games):
+            tsl_id = game['tsl_id']
+            
+            if tsl_id not in tsl_games:
+                tsl_games[tsl_id] = []
+            
+            tsl_games[tsl_id].append(i)
+        
+        for tsl_id, game_indices in tsl_games.items():
+            model.Add(sum(game_vars[i] for i in game_indices) <= 1)
+        
+        logger.info(f"OR-Tools Scheduler: Added constraints for {len(tsl_games)} TSLs")
+        
+        # Objective: maximize total weight
+        # OR-Tools works with integers, so scale weights by 1000
+        logger.info("OR-Tools Scheduler: Setting objective function...")
+        scaled_weights = []
+        for i, game in enumerate(feasible_games):
+            weight = game.get('weight', 0)
+            scaled_weight = int(weight * 1000)  # Scale to integer
+            scaled_weights.append(scaled_weight * game_vars[i])
+        
+        model.Maximize(sum(scaled_weights))
+        
+        logger.info(f"OR-Tools Scheduler: Problem has {len(game_vars)} variables and {len(team_games) + len(tsl_games)} constraints")
+        logger.info(f"OR-Tools Scheduler: Starting solver (timeout: {self.timeout}s)...")
+        
+        # Create solver and solve
+        solver = cp_model.CpSolver()
+        solver.parameters.max_time_in_seconds = self.timeout
+        solver.parameters.log_search_progress = False
+        
+        status = solver.Solve(model)
+        
+        logger.info(f"OR-Tools Scheduler: Solver completed with status: {solver.StatusName(status)}")
+        
+        # Check solution status
+        if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
+            # Extract selected games
+            selected_games = []
+            for i in range(len(feasible_games)):
+                if solver.Value(game_vars[i]) == 1:
+                    selected_games.append(feasible_games[i])
+            
+            if not selected_games:
+                raise NoFeasibleGamesError(
+                    "OR-Tools solver completed but selected no games"
+                )
+            
+            logger.info(f"OR-Tools Scheduler: Selected {len(selected_games)} games (objective value: {solver.ObjectiveValue() / 1000:.3f})")
+            return selected_games
+            
+        elif status == cp_model.INFEASIBLE:
+            raise NoFeasibleGamesError(
+                "OR-Tools solver found no feasible solution"
+            )
+        else:
+            raise RuntimeError(
+                f"OR-Tools solver failed with status: {solver.StatusName(status)}"
+            )
+
+
 def get_scheduler(algorithm: str = "greedy") -> BaseScheduler:
     """
     Factory function to get a scheduler instance.
     
     Args:
-        algorithm: Name of algorithm ('greedy' or 'ilp')
+        algorithm: Name of algorithm ('greedy', 'ilp', or 'ortools')
         
     Returns:
         Scheduler instance
@@ -259,7 +400,8 @@ def get_scheduler(algorithm: str = "greedy") -> BaseScheduler:
     """
     schedulers = {
         "greedy": GreedyScheduler,
-        "ilp": ILPScheduler
+        "ilp": ILPScheduler,
+        "ortools": ORToolsScheduler
     }
     
     scheduler_class = schedulers.get(algorithm.lower())

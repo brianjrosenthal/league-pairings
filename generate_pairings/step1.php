@@ -92,8 +92,9 @@ header_html('Generate Pairings');
         <label>
             <span>Algorithm</span>
             <select name="algorithm">
-                <option value="greedy" selected>Greedy (Fast, Good Results)</option>
-                <option value="ilp">ILP Optimization (Optimal, Slower)</option>
+                <option value="greedy" selected>Greedy (Fastest, Near-Optimal)</option>
+                <option value="ortools">Google OR-Tools (Fast, Optimal)</option>
+                <option value="ilp">PuLP ILP (Slower, Optimal)</option>
             </select>
         </label>
         

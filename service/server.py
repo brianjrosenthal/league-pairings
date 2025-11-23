@@ -63,7 +63,7 @@ async def generate_schedule(
     algorithm: str = Query(
         SCHEDULING_CONFIG.get('default_algorithm', 'greedy'),
         description="Scheduling algorithm to use",
-        enum=["greedy", "ilp"]
+        enum=["greedy", "ilp", "ortools"]
     )
 ):
     """
