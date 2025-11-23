@@ -1,5 +1,5 @@
 <?php
-set_time_limit(120); // 2 minutes for ILP scheduling operations
+set_time_limit(120);
 
 require_once __DIR__ . '/../partials.php';
 require_once __DIR__ . '/../lib/SchedulingManagement.php';
@@ -8,26 +8,39 @@ require_login();
 
 $me = current_user();
 
-// Get parameters
-$startDate = $_GET['start_date'] ?? '';
-$endDate = $_GET['end_date'] ?? '';
-$algorithm = $_GET['algorithm'] ?? 'greedy';
+// Get job ID
+$jobId = $_GET['job_id'] ?? '';
 
-// Validate dates
-if (empty($startDate) || empty($endDate)) {
-    header('Location: /generate_pairings/step1.php?err=' . urlencode('Please provide both start and end dates.'));
+if (empty($jobId)) {
+    header('Location: /generate_pairings/step1.php?err=' . urlencode('No job ID provided.'));
     exit;
 }
 
-// Call Python scheduling service
+// Get job result
 $error = null;
 $schedule = null;
 
 try {
-    $rawSchedule = SchedulingManagement::callPythonScheduler($startDate, $endDate, $algorithm);
-    $schedule = SchedulingManagement::enrichScheduleWithNames($rawSchedule);
+    $rawSchedule = SchedulingManagement::getJobResult($jobId);
+    
+    if (isset($rawSchedule['success']) && $rawSchedule['success'] === true) {
+        $schedule = SchedulingManagement::enrichScheduleWithNames($rawSchedule);
+    } else {
+        $error = $rawSchedule['error'] ?? 'Failed to generate schedule';
+    }
 } catch (RuntimeException $e) {
     $error = $e->getMessage();
+}
+
+// Get parameters from job if available
+$startDate = '';
+$endDate = '';
+$algorithm = 'greedy';
+
+if ($schedule) {
+    $startDate = $schedule['metadata']['start_date'] ?? '';
+    $endDate = $schedule['metadata']['end_date'] ?? '';
+    $algorithm = $schedule['metadata']['algorithm'] ?? 'greedy';
 }
 
 header_html('Generated Schedule');
@@ -36,11 +49,10 @@ header_html('Generated Schedule');
 <h2>Generated Game Pairings</h2>
 
 <div style="margin-bottom: 16px;">
-    <a href="/generate_pairings/step2.php?start_date=<?= urlencode($startDate) ?>&end_date=<?= urlencode($endDate) ?>&algorithm=<?= urlencode($algorithm) ?>" class="button">← Back to Review</a>
-    <a href="/generate_pairings/step1.php" class="button">Start Over</a>
-    <?php if (!empty($schedule['schedule'])): ?>
-        <button type="button" class="button" onclick="showExportModal()">Export as CSV</button>
+    <?php if ($startDate && $endDate): ?>
+        <a href="/generate_pairings/step2.php?start_date=<?= urlencode($startDate) ?>&end_date=<?= urlencode($endDate) ?>&algorithm=<?= urlencode($algorithm) ?>" class="button">← Back to Review</a>
     <?php endif; ?>
+    <a href="/generate_pairings/step1.php" class="button">Start Over</a>
 </div>
 
 <?php if ($error): ?>
@@ -91,6 +103,12 @@ header_html('Generated Schedule');
             </div>
             <?php endif; ?>
         </div>
+        
+        <?php if (!empty($schedule['schedule'])): ?>
+            <div style="margin-top: 16px;">
+                <button type="button" class="button" onclick="showExportModal()">Export as CSV</button>
+            </div>
+        <?php endif; ?>
     </div>
     
     <?php if (!empty($schedule['warnings'])): ?>

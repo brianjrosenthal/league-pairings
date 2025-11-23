@@ -107,7 +107,7 @@ header_html('Generate Pairings - Review');
     <?php endif; ?>
     
     <div class="actions">
-        <a href="/generate_pairings/generate.php?start_date=<?= urlencode($startDate) ?>&end_date=<?= urlencode($endDate) ?>&algorithm=<?= urlencode($algorithm) ?>" 
+        <a href="/generate_pairings/generate_async.php?start_date=<?= urlencode($startDate) ?>&end_date=<?= urlencode($endDate) ?>&algorithm=<?= urlencode($algorithm) ?>" 
            class="button primary"
            <?= $timeslotLocationCount === 0 ? 'disabled style="opacity: 0.5; pointer-events: none;"' : '' ?>>
             Generate Pairings

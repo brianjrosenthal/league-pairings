@@ -112,7 +112,121 @@ class SchedulingManagement {
     }
 
     /**
-     * Call the Python scheduling service
+     * Start an asynchronous scheduling job
+     * Returns the job ID for tracking
+     */
+    public static function startAsyncScheduler(string $startDate, string $endDate, string $algorithm = 'greedy'): string {
+        $port = defined('SCHEDULING_SERVICE_PORT') ? SCHEDULING_SERVICE_PORT : 5001;
+        $url = 'http://localhost:' . $port . '/schedule/start';
+        
+        $params = http_build_query([
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+            'algorithm' => $algorithm
+        ]);
+        
+        $fullUrl = $url . '?' . $params;
+        
+        self::log('scheduling.async_request', [
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+            'algorithm' => $algorithm
+        ]);
+        
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'timeout' => 10,
+                'header' => 'Content-Type: application/json'
+            ]
+        ]);
+        
+        $response = @file_get_contents($fullUrl, false, $context);
+        
+        if ($response === false) {
+            $error = error_get_last();
+            self::log('scheduling.error', [
+                'error' => 'Failed to connect to Python service',
+                'details' => $error['message'] ?? 'Unknown error'
+            ]);
+            throw new RuntimeException('Failed to connect to scheduling service. Please ensure the Python service is running on port ' . $port . '.');
+        }
+        
+        $data = json_decode($response, true);
+        
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new RuntimeException('Invalid response from scheduling service.');
+        }
+        
+        if (!isset($data['job_id'])) {
+            throw new RuntimeException('Scheduling service did not return a job ID.');
+        }
+        
+        return $data['job_id'];
+    }
+
+    /**
+     * Get the status of an async scheduling job
+     */
+    public static function getJobStatus(string $jobId): array {
+        $port = defined('SCHEDULING_SERVICE_PORT') ? SCHEDULING_SERVICE_PORT : 5001;
+        $url = 'http://localhost:' . $port . '/schedule/status/' . urlencode($jobId);
+        
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'timeout' => 5,
+                'header' => 'Content-Type: application/json'
+            ]
+        ]);
+        
+        $response = @file_get_contents($url, false, $context);
+        
+        if ($response === false) {
+            throw new RuntimeException('Failed to get job status from scheduling service.');
+        }
+        
+        $data = json_decode($response, true);
+        
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new RuntimeException('Invalid response from scheduling service.');
+        }
+        
+        return $data;
+    }
+
+    /**
+     * Get the result of a completed async scheduling job
+     */
+    public static function getJobResult(string $jobId): array {
+        $port = defined('SCHEDULING_SERVICE_PORT') ? SCHEDULING_SERVICE_PORT : 5001;
+        $url = 'http://localhost:' . $port . '/schedule/result/' . urlencode($jobId);
+        
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'timeout' => 10,
+                'header' => 'Content-Type: application/json'
+            ]
+        ]);
+        
+        $response = @file_get_contents($url, false, $context);
+        
+        if ($response === false) {
+            throw new RuntimeException('Failed to get job result from scheduling service.');
+        }
+        
+        $data = json_decode($response, true);
+        
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new RuntimeException('Invalid response from scheduling service.');
+        }
+        
+        return $data;
+    }
+
+    /**
+     * Call the Python scheduling service (synchronous - for backward compatibility)
      * Returns the raw JSON response from the service
      */
     public static function callPythonScheduler(string $startDate, string $endDate, string $algorithm = 'greedy'): array {
