@@ -354,9 +354,11 @@ class TrueMultiPhaseScheduler:
         timeout: int
     ) -> List[Dict]:
         """
-        Phase 1B: Optimal remaining coverage - schedule unscheduled teams.
-        Only considers games involving teams not yet scheduled.
-        Uses weights for quality.
+        Phase 1B: Comprehensive optimal scheduling for unscheduled teams.
+        Considers ALL games involving unscheduled teams, including:
+        - Unscheduled vs Unscheduled
+        - Unscheduled vs Already-Scheduled (if scheduled team has capacity)
+        Uses OR-Tools to optimally place all remaining unscheduled teams.
         
         Args:
             feasible_games: All feasible games
@@ -370,27 +372,39 @@ class TrueMultiPhaseScheduler:
         except ImportError:
             raise RuntimeError("OR-Tools not installed")
         
-        # Determine which teams still need scheduling
-        scheduled_teams = set()
+        # Determine which teams still need scheduling THIS WEEK
+        scheduled_this_week = set()
         for game in self.scheduled_games:
-            scheduled_teams.add(game['teamA'])
-            scheduled_teams.add(game['teamB'])
+            timeslot_id = game.get('timeslot_id')
+            if timeslot_id and timeslot_id in self.model.week_mapping:
+                # Only count games from the current week we're processing
+                scheduled_this_week.add(game['teamA'])
+                scheduled_this_week.add(game['teamB'])
         
-        # Filter to only games with at least one unscheduled team
+        # Include ALL games where at least one team is unscheduled THIS WEEK
+        # This allows unscheduled teams to play against already-scheduled teams
         remaining_games = []
         for game in feasible_games:
             team_a = game['teamA']
             team_b = game['teamB']
             
-            # Only consider if at least one team hasn't played
-            if team_a not in scheduled_teams or team_b not in scheduled_teams:
+            # Include if at least one team hasn't played this week yet
+            if team_a not in scheduled_this_week or team_b not in scheduled_this_week:
                 remaining_games.append(game)
         
         if not remaining_games:
             logger.info("Phase 1B: All teams already scheduled")
             return []
         
-        logger.info(f"Phase 1B: Considering {len(remaining_games)} games for {len([t for g in remaining_games for t in [g['teamA'], g['teamB']] if t not in scheduled_teams])} unscheduled teams")
+        # Count unscheduled teams
+        unscheduled_teams = set()
+        for game in remaining_games:
+            if game['teamA'] not in scheduled_this_week:
+                unscheduled_teams.add(game['teamA'])
+            if game['teamB'] not in scheduled_this_week:
+                unscheduled_teams.add(game['teamB'])
+        
+        logger.info(f"Phase 1B: Considering {len(remaining_games)} games for {len(unscheduled_teams)} unscheduled teams")
         
         model = cp_model.CpModel()
         
@@ -463,7 +477,7 @@ class TrueMultiPhaseScheduler:
         # Objective: Coverage of unscheduled teams + game quality
         team_coverage = {}
         for team_id, game_indices in team_games.items():
-            if team_id not in scheduled_teams:
+            if team_id not in scheduled_this_week:
                 coverage_var = model.NewBoolVar(f'coverage_t{team_id}')
                 team_coverage[team_id] = coverage_var
                 
