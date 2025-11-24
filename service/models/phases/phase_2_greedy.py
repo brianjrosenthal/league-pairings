@@ -86,6 +86,12 @@ class Phase2Greedy(BasePhase):
         
         logger.info(f"\nPhase 2 Week {week_num}: Scheduled {games_added} additional games in {round_num} rounds")
         
+        # Run exhaustive final check to catch any missed opportunities
+        additional_games = self._exhaustive_final_check(schedule, week_num)
+        
+        if additional_games > 0:
+            logger.info(f"\n*** Phase 2 Final Check Week {week_num}: Found {additional_games} additional games! ***")
+        
         # Clear generators for this week
         self._clear_week_generators(week_num)
         
@@ -393,6 +399,184 @@ class Phase2Greedy(BasePhase):
             return day.weekday() == 6  # Sunday = 6
         except (ValueError, TypeError):
             return False
+    
+    def _exhaustive_final_check(
+        self,
+        schedule: Schedule,
+        week_num: int
+    ) -> int:
+        """
+        Exhaustive final check to catch any games missed by greedy algorithm.
+        
+        Systematically checks:
+        - For each division
+        - For each team pair in that division
+        - For each available timeslot-location
+        - If constraints allow, schedule the game
+        
+        Args:
+            schedule: Current schedule
+            week_num: Current week number
+            
+        Returns:
+            Number of additional games found and scheduled
+        """
+        games_found = 0
+        
+        # For each division
+        for division in self.model.divisions:
+            division_id = division['id']
+            division_name = division['name']
+            teams_in_division = self.model.teams_by_division.get(division_id, [])
+            
+            if len(teams_in_division) < 2:
+                continue
+            
+            # For each team pair in this division
+            for i, team1 in enumerate(teams_in_division):
+                team1_id = team1['team_id']
+                team1_name = team1['name']
+                
+                for team2 in teams_in_division[i+1:]:
+                    team2_id = team2['team_id']
+                    team2_name = team2['name']
+                    
+                    # Check if this pair has already played this week
+                    if self._teams_played_this_week(team1_id, team2_id, schedule, week_num):
+                        continue
+                    
+                    # Check if either team would exceed 3 games
+                    team1_games = len(schedule.get_team_games_in_week(team1_id, week_num))
+                    team2_games = len(schedule.get_team_games_in_week(team2_id, week_num))
+                    
+                    if team1_games >= self.max_games_per_week or team2_games >= self.max_games_per_week:
+                        continue
+                    
+                    # Get common timeslots where both teams are available
+                    team1_timeslots = self.model.team_availability.get(team1_id, set())
+                    team2_timeslots = self.model.team_availability.get(team2_id, set())
+                    common_timeslots = team1_timeslots & team2_timeslots
+                    
+                    if not common_timeslots:
+                        continue
+                    
+                    # For each available timeslot-location in this week
+                    for tsl in self.model.tsls:
+                        tsl_id = tsl['tsl_id']
+                        timeslot_id = tsl['timeslot_id']
+                        location_id = tsl['location_id']
+                        
+                        # Check if this timeslot is in the current week
+                        if timeslot_id not in self.model.week_mapping:
+                            continue
+                        
+                        tsl_week = self.model.week_mapping[timeslot_id][0]
+                        if tsl_week != week_num:
+                            continue
+                        
+                        # Check if timeslot is available to both teams
+                        if timeslot_id not in common_timeslots:
+                            continue
+                        
+                        # Check if this TSL is already occupied
+                        if schedule.is_tsl_used(tsl_id):
+                            continue
+                        
+                        # Check daily game limits for both teams
+                        tsl_date = tsl.get('date')
+                        if tsl_date:
+                            if self._team_has_game_on_date(team1_id, tsl_date, schedule):
+                                continue
+                            if self._team_has_game_on_date(team2_id, tsl_date, schedule):
+                                continue
+                        
+                        # All constraints pass - create and add the game!
+                        game = {
+                            'teamA': team1_id,
+                            'teamB': team2_id,
+                            'teamA_name': team1_name,
+                            'teamB_name': team2_name,
+                            'division_id': division_id,
+                            'division_name': division_name,
+                            'timeslot_id': timeslot_id,
+                            'location_id': location_id,
+                            'location_name': tsl['location_name'],
+                            'tsl_id': tsl_id,
+                            'date': tsl_date,
+                            'modifier': tsl.get('modifier')
+                        }
+                        
+                        if schedule.add_game(game):
+                            games_found += 1
+                            logger.info(
+                                f"Final check found game: {team1_name} vs {team2_name} "
+                                f"at {tsl['location_name']} on {tsl_date}"
+                            )
+                            # Break after finding one game for this pair
+                            # (they could potentially play in multiple timeslots, but we only schedule one)
+                            break
+        
+        return games_found
+    
+    def _teams_played_this_week(
+        self,
+        team1_id: int,
+        team2_id: int,
+        schedule: Schedule,
+        week_num: int
+    ) -> bool:
+        """
+        Check if two teams have already played each other this week.
+        
+        Args:
+            team1_id: First team ID
+            team2_id: Second team ID
+            schedule: Current schedule
+            week_num: Current week number
+            
+        Returns:
+            True if teams played this week, False otherwise
+        """
+        week_games = schedule.get_games_for_week(week_num)
+        
+        for game in week_games:
+            game_teams = {game.get('teamA'), game.get('teamB')}
+            if game_teams == {team1_id, team2_id}:
+                return True
+        
+        return False
+    
+    def _team_has_game_on_date(
+        self,
+        team_id: int,
+        date,
+        schedule: Schedule
+    ) -> bool:
+        """
+        Check if a team already has a game on a specific date.
+        
+        Args:
+            team_id: Team ID
+            date: Date to check (can be string or date object)
+            schedule: Current schedule
+            
+        Returns:
+            True if team has game on this date, False otherwise
+        """
+        if isinstance(date, str):
+            date = datetime.strptime(date, '%Y-%m-%d').date()
+        
+        for game in schedule.games:
+            if game.get('teamA') == team_id or game.get('teamB') == team_id:
+                game_date = game.get('date')
+                if game_date:
+                    if isinstance(game_date, str):
+                        game_date = datetime.strptime(game_date, '%Y-%m-%d').date()
+                    
+                    if game_date == date:
+                        return True
+        
+        return False
     
     def _clear_week_generators(self, week_num: int):
         """Clear all generators for a specific week."""
