@@ -60,7 +60,13 @@ header_html('My Profile');
   // Surface messages from upload_photo redirect
   if (isset($_GET['uploaded'])) { $msg = 'Photo uploaded.'; }
   if (isset($_GET['deleted'])) { $msg = 'Photo removed.'; }
-  if (isset($_GET['err'])) { $err = 'Photo upload failed.'; }
+  if (isset($_GET['err'])) { 
+    $err = 'Photo upload failed.';
+    // Include detailed error message if provided
+    if (isset($_GET['err_msg']) && $_GET['err_msg'] !== '') {
+      $err .= ' ' . $_GET['err_msg'];
+    }
+  }
 ?>
 <?php if ($msg): ?><p class="flash"><?=h($msg)?></p><?php endif; ?>
 <?php if ($err): ?><p class="error"><?=h($err)?></p><?php endif; ?>

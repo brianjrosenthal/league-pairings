@@ -51,7 +51,7 @@ if ($action === 'delete') {
     $ctx = UserContext::getLoggedInUserContext();
     UserManagement::updateUserPhoto($ctx, $userId, null);
   } catch (Throwable $e) {
-    redirect_back($returnTo, ['err' => 'db_failed']);
+    redirect_back($returnTo, ['err' => 'delete_failed', 'err_msg' => $e->getMessage()]);
   }
   redirect_back($returnTo, ['deleted' => 1]);
   exit;
@@ -105,7 +105,7 @@ try {
   $ctx = UserContext::getLoggedInUserContext();
   UserManagement::updateUserPhoto($ctx, $userId, $publicId);
 } catch (Throwable $e) {
-  redirect_back($returnTo, ['err' => 'db_failed']);
+  redirect_back($returnTo, ['err' => 'upload_failed', 'err_msg' => $e->getMessage()]);
 }
 
 redirect_back($returnTo, ['uploaded' => 1]);
