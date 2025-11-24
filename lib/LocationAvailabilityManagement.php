@@ -92,7 +92,7 @@ class LocationAvailabilityManagement {
                 FROM timeslots t 
                 INNER JOIN location_availability la ON t.id = la.timeslot_id 
                 WHERE la.location_id = ? 
-                ORDER BY t.date DESC, t.modifier';
+                ORDER BY t.date ASC, t.modifier ASC';
 
         $st = self::pdo()->prepare($sql);
         $st->execute([$locationId]);
