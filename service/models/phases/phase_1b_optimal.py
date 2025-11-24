@@ -11,7 +11,7 @@ import random
 from datetime import datetime
 
 from .base_phase import BasePhase
-from .scheduling_state import SchedulingState
+from .schedule import Schedule
 
 logger = logging.getLogger(__name__)
 
@@ -30,27 +30,26 @@ class Phase1BOptimal(BasePhase):
     
     def schedule(
         self,
-        state: SchedulingState,
+        schedule: Schedule,
         feasible_games: List[Dict],
         week_num: int,
         timeout: int
-    ) -> SchedulingState:
+    ) -> Schedule:
         """
         Execute Phase 1B scheduling.
         
         Args:
-            state: Current scheduling state
+            schedule: Current schedule with constraint enforcement
             feasible_games: All feasible games (ignored - we build our own)
             week_num: Current week number
             timeout: Time limit (ignored for deterministic algorithm)
             
         Returns:
-            New state with Phase 1B games added
+            Updated schedule with Phase 1B games added
         """
         logger.info(f"Phase 1B Week {week_num}: Starting fill-in scheduling")
         
-        initial_game_count = len([g for g in state.scheduled_games 
-                                  if self.model.week_mapping.get(g.get('timeslot_id'), [None])[0] == week_num])
+        initial_game_count = len(schedule.get_games_for_week(week_num))
         
         # Process each division
         for division in self.model.divisions:
@@ -63,7 +62,7 @@ class Phase1BOptimal(BasePhase):
             
             # Get unscheduled teams for this week
             unscheduled_teams = self._get_unscheduled_teams_for_week(
-                teams_in_division, state, week_num
+                teams_in_division, schedule, week_num
             )
             
             if not unscheduled_teams:
@@ -74,24 +73,23 @@ class Phase1BOptimal(BasePhase):
             # Try to schedule each unscheduled team
             for unscheduled_team in unscheduled_teams:
                 game = self._try_to_schedule_team(
-                    unscheduled_team, teams_in_division, state, week_num
+                    unscheduled_team, teams_in_division, schedule, week_num
                 )
                 
                 if game:
-                    state = state.add_game(game, self.model.week_mapping, self.model.day_mapping)
-                    logger.info(f"    ✓ {unscheduled_team['name']}: Paired with {game['teamB_name'] if game['teamA'] == unscheduled_team['team_id'] else game['teamA_name']}")
+                    if schedule.add_game(game):
+                        logger.info(f"    ✓ {unscheduled_team['name']}: Paired with {game['teamB_name'] if game['teamA'] == unscheduled_team['team_id'] else game['teamA_name']}")
         
-        games_added = len([g for g in state.scheduled_games 
-                          if self.model.week_mapping.get(g.get('timeslot_id'), [None])[0] == week_num]) - initial_game_count
+        games_added = len(schedule.get_games_for_week(week_num)) - initial_game_count
         
         logger.info(f"\nPhase 1B Week {week_num}: Scheduled {games_added} additional games")
         
-        return state
+        return schedule
     
     def _get_unscheduled_teams_for_week(
         self,
         teams: List[Dict],
-        state: SchedulingState,
+        schedule: Schedule,
         week_num: int
     ) -> List[Dict]:
         """
@@ -99,7 +97,7 @@ class Phase1BOptimal(BasePhase):
         
         Args:
             teams: List of team dictionaries
-            state: Current scheduling state
+            schedule: Current schedule
             week_num: Current week number
             
         Returns:
@@ -107,13 +105,9 @@ class Phase1BOptimal(BasePhase):
         """
         scheduled_team_ids = set()
         
-        for game in state.scheduled_games:
-            timeslot_id = game.get('timeslot_id')
-            if timeslot_id and timeslot_id in self.model.week_mapping:
-                game_week = self.model.week_mapping[timeslot_id][0]
-                if game_week == week_num:
-                    scheduled_team_ids.add(game['teamA'])
-                    scheduled_team_ids.add(game['teamB'])
+        for game in schedule.get_games_for_week(week_num):
+            scheduled_team_ids.add(game['teamA'])
+            scheduled_team_ids.add(game['teamB'])
         
         return [t for t in teams if t['team_id'] not in scheduled_team_ids]
     
@@ -121,7 +115,7 @@ class Phase1BOptimal(BasePhase):
         self,
         unscheduled_team: Dict,
         teams_in_division: List[Dict],
-        state: SchedulingState,
+        schedule: Schedule,
         week_num: int
     ) -> Optional[Dict]:
         """
@@ -137,7 +131,7 @@ class Phase1BOptimal(BasePhase):
         Args:
             unscheduled_team: Team to schedule
             teams_in_division: All teams in division
-            state: Current scheduling state
+            schedule: Current schedule
             week_num: Current week number
             
         Returns:
@@ -150,7 +144,7 @@ class Phase1BOptimal(BasePhase):
         
         # Filter to teams with < 3 games this week
         available_teams = self._filter_teams_under_weekly_limit(
-            other_teams, state, week_num
+            other_teams, schedule, week_num
         )
         
         if not available_teams:
@@ -160,15 +154,15 @@ class Phase1BOptimal(BasePhase):
         for other_team in available_teams:
             other_team_id = other_team['team_id']
             
-            if not self._teams_played_recently(unscheduled_team_id, other_team_id, state, week_num, weeks_back=3):
-                game = self._try_to_find_game(unscheduled_team_id, other_team_id, state, week_num)
+            if not self._teams_played_recently(unscheduled_team_id, other_team_id, schedule, week_num, weeks_back=3):
+                game = self._try_to_find_game(unscheduled_team_id, other_team_id, schedule, week_num)
                 if game:
                     return game
         
         # Second pass: Try any available team (ignore recent play constraint)
         for other_team in available_teams:
             other_team_id = other_team['team_id']
-            game = self._try_to_find_game(unscheduled_team_id, other_team_id, state, week_num)
+            game = self._try_to_find_game(unscheduled_team_id, other_team_id, schedule, week_num)
             if game:
                 return game
         
@@ -177,7 +171,7 @@ class Phase1BOptimal(BasePhase):
     def _filter_teams_under_weekly_limit(
         self,
         teams: List[Dict],
-        state: SchedulingState,
+        schedule: Schedule,
         week_num: int
     ) -> List[Dict]:
         """
@@ -185,34 +179,26 @@ class Phase1BOptimal(BasePhase):
         
         Args:
             teams: List of team dictionaries
-            state: Current scheduling state
+            schedule: Current schedule
             week_num: Current week number
             
         Returns:
             Filtered list of teams
         """
-        # Count games per team this week
-        team_game_counts = {}
+        # Use Schedule's efficient method to get team games
+        available = []
         for team in teams:
-            team_game_counts[team['team_id']] = 0
+            team_games = schedule.get_team_games_in_week(team['team_id'], week_num)
+            if len(team_games) < self.max_games_per_week:
+                available.append(team)
         
-        for game in state.scheduled_games:
-            timeslot_id = game.get('timeslot_id')
-            if timeslot_id and timeslot_id in self.model.week_mapping:
-                game_week = self.model.week_mapping[timeslot_id][0]
-                if game_week == week_num:
-                    for team_id in [game['teamA'], game['teamB']]:
-                        if team_id in team_game_counts:
-                            team_game_counts[team_id] += 1
-        
-        # Filter to teams with < max_games_per_week
-        return [t for t in teams if team_game_counts[t['team_id']] < self.max_games_per_week]
+        return available
     
     def _teams_played_recently(
         self,
         team1_id: int,
         team2_id: int,
-        state: SchedulingState,
+        schedule: Schedule,
         current_week: int,
         weeks_back: int = 3
     ) -> bool:
@@ -224,7 +210,7 @@ class Phase1BOptimal(BasePhase):
         Args:
             team1_id: First team ID
             team2_id: Second team ID
-            state: Current scheduling state
+            schedule: Current schedule
             current_week: Current week number
             weeks_back: Number of weeks to look back
             
@@ -251,7 +237,7 @@ class Phase1BOptimal(BasePhase):
                                 break
         
         # Check currently scheduled games in this run
-        for game in state.scheduled_games:
+        for game in schedule.games:
             if self._game_involves_both_teams(game, team1_id, team2_id):
                 return True
         
@@ -272,7 +258,7 @@ class Phase1BOptimal(BasePhase):
         self,
         team1_id: int,
         team2_id: int,
-        state: SchedulingState,
+        schedule: Schedule,
         week_num: int
     ) -> Optional[Dict]:
         """
@@ -288,7 +274,7 @@ class Phase1BOptimal(BasePhase):
         Args:
             team1_id: First team ID
             team2_id: Second team ID
-            state: Current scheduling state
+            schedule: Current schedule
             week_num: Current week number
             
         Returns:
@@ -320,7 +306,7 @@ class Phase1BOptimal(BasePhase):
             if tsl_week != week_num:
                 continue
             
-            if tsl_id in state.used_tsls:
+            if schedule.is_tsl_used(tsl_id):
                 continue
             
             available_tsls.append(tsl)

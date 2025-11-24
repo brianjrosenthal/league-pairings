@@ -9,7 +9,7 @@ from typing import Dict, List, Optional
 from collections import defaultdict
 import logging
 
-from .scheduling_state import SchedulingState
+from .schedule import Schedule
 from .phase_1a_coverage import Phase1ACoverage
 from .phase_1b_optimal import Phase1BOptimal
 from .phase_1c_displacement import Phase1CDisplacement
@@ -85,8 +85,8 @@ class MultiPhaseController:
         time_per_week = self.timeout / len(all_weeks) if all_weeks else self.timeout
         phase_timeouts = self._calculate_phase_timeouts(time_per_week)
         
-        # Initialize state
-        state = SchedulingState()
+        # Initialize schedule with constraint enforcement
+        schedule = Schedule(self.model)
         
         # Process each week
         for week_num in all_weeks:
@@ -95,15 +95,15 @@ class MultiPhaseController:
             logger.info(f"WEEK {week_num}: {len(week_games)} candidate games")
             logger.info(f"{'='*60}")
             
-            state = self._schedule_week(state, week_games, week_num, phase_timeouts)
+            schedule = self._schedule_week(schedule, week_games, week_num, phase_timeouts)
             
             # Check if we should stop after current set of completed phases
             if self.stop_after_phase and self._should_stop_after_week():
                 logger.info(f"Stopping after completing phases through {self.stop_after_phase}")
                 break
         
-        logger.info(f"\nTotal games scheduled: {len(state.scheduled_games)}")
-        return state.scheduled_games
+        logger.info(f"\nTotal games scheduled: {len(schedule.games)}")
+        return schedule.games
     
     def _group_games_by_week(self, feasible_games: List[Dict]) -> Dict[int, List[Dict]]:
         """Group feasible games by week number."""
@@ -132,62 +132,62 @@ class MultiPhaseController:
     
     def _schedule_week(
         self,
-        state: SchedulingState,
+        schedule: Schedule,
         week_games: List[Dict],
         week_num: int,
         phase_timeouts: Dict[str, int]
-    ) -> SchedulingState:
+    ) -> Schedule:
         """
         Schedule games for a single week using all applicable phases.
         
         Args:
-            state: Current scheduling state
+            schedule: Current schedule with constraint enforcement
             week_games: Feasible games for this week
             week_num: Week number
             phase_timeouts: Timeout for each phase
             
         Returns:
-            Updated scheduling state
+            Updated schedule
         """
-        initial_game_count = len(state.scheduled_games)
+        initial_game_count = len(schedule.games)
         
         # Phase 1A: Pure Coverage
         logger.info(f"\n--- Phase 1A: Pure Coverage ({phase_timeouts['1A']}s) ---")
-        state = self.phase_1a.schedule(state, week_games, week_num, phase_timeouts['1A'])
-        phase_1a_games = len(state.scheduled_games) - initial_game_count
+        schedule = self.phase_1a.schedule(schedule, week_games, week_num, phase_timeouts['1A'])
+        phase_1a_games = len(schedule.games) - initial_game_count
         
         if self.stop_after_phase == '1A':
             logger.info(f"Phase 1A complete: {phase_1a_games} games scheduled")
-            return state
+            return schedule
         
         # Phase 1B: Comprehensive Optimal
         logger.info(f"\n--- Phase 1B: Comprehensive Optimal ({phase_timeouts['1B']}s) ---")
-        phase_1b_start = len(state.scheduled_games)
-        state = self.phase_1b.schedule(state, week_games, week_num, phase_timeouts['1B'])
-        phase_1b_games = len(state.scheduled_games) - phase_1b_start
+        phase_1b_start = len(schedule.games)
+        schedule = self.phase_1b.schedule(schedule, week_games, week_num, phase_timeouts['1B'])
+        phase_1b_games = len(schedule.games) - phase_1b_start
         
         if self.stop_after_phase == '1B':
             logger.info(f"Phase 1B complete: {phase_1b_games} games scheduled")
-            return state
+            return schedule
         
         # Phase 1C: Strategic Displacement
         logger.info(f"\n--- Phase 1C: Strategic Displacement ({phase_timeouts['1C']}s) ---")
-        phase_1c_start = len(state.scheduled_games)
-        state = self.phase_1c.schedule(state, week_games, week_num, phase_timeouts['1C'])
-        phase_1c_games = len(state.scheduled_games) - phase_1c_start
+        phase_1c_start = len(schedule.games)
+        schedule = self.phase_1c.schedule(schedule, week_games, week_num, phase_timeouts['1C'])
+        phase_1c_games = len(schedule.games) - phase_1c_start
         
         if self.stop_after_phase == '1C':
             logger.info(f"Phase 1C complete: {phase_1c_games} games scheduled")
-            return state
+            return schedule
         
         # Phase 2: Greedy Filling
         logger.info(f"\n--- Phase 2: Greedy Filling ({phase_timeouts['2']}s) ---")
-        phase_2_start = len(state.scheduled_games)
-        state = self.phase_2.schedule(state, week_games, week_num, phase_timeouts['2'])
-        phase_2_games = len(state.scheduled_games) - phase_2_start
+        phase_2_start = len(schedule.games)
+        schedule = self.phase_2.schedule(schedule, week_games, week_num, phase_timeouts['2'])
+        phase_2_games = len(schedule.games) - phase_2_start
         
         # Summary for this week
-        total_week_games = len(state.scheduled_games) - initial_game_count
+        total_week_games = len(schedule.games) - initial_game_count
         logger.info(f"\nWeek {week_num} Summary:")
         logger.info(f"  Phase 1A: {phase_1a_games} games")
         logger.info(f"  Phase 1B: {phase_1b_games} games")
@@ -195,7 +195,7 @@ class MultiPhaseController:
         logger.info(f"  Phase 2:  {phase_2_games} games")
         logger.info(f"  Total:    {total_week_games} games")
         
-        return state
+        return schedule
     
     def _should_stop_after_week(self) -> bool:
         """

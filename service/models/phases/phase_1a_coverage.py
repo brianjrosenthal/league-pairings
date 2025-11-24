@@ -12,7 +12,7 @@ import random
 from datetime import datetime, timedelta
 
 from .base_phase import BasePhase
-from .scheduling_state import SchedulingState
+from .schedule import Schedule
 
 logger = logging.getLogger(__name__)
 
@@ -31,22 +31,22 @@ class Phase1ACoverage(BasePhase):
     
     def schedule(
         self,
-        state: SchedulingState,
+        schedule: Schedule,
         feasible_games: List[Dict],
         week_num: int,
         timeout: int
-    ) -> SchedulingState:
+    ) -> Schedule:
         """
         Execute Phase 1A scheduling using greedy algorithm.
         
         Args:
-            state: Current scheduling state
+            schedule: Current schedule with constraint enforcement
             feasible_games: All feasible games (ignored - we build our own)
             week_num: Current week number
             timeout: Time limit (ignored for deterministic algorithm)
             
         Returns:
-            New state with Phase 1A games added
+            Updated schedule with Phase 1A games added
         """
         logger.info(f"Phase 1A Week {week_num}: Starting greedy scheduling (round-robin)")
         
@@ -71,14 +71,16 @@ class Phase1ACoverage(BasePhase):
                 
                 # Try to find one game for this division
                 game = self._find_next_game_for_division(
-                    division_id, teams_in_division, state, week_num
+                    division_id, teams_in_division, schedule, week_num
                 )
                 
                 if game:
-                    state = state.add_game(game, self.model.week_mapping, self.model.day_mapping)
-                    logger.info(f"    ✓ {division_name}: {game['teamA_name']} vs {game['teamB_name']}")
-                    games_this_round += 1
-                    total_games_scheduled += 1
+                    if schedule.add_game(game):
+                        logger.info(f"    ✓ {division_name}: {game['teamA_name']} vs {game['teamB_name']}")
+                        games_this_round += 1
+                        total_games_scheduled += 1
+                    else:
+                        logger.warning(f"    ✗ Game rejected by constraints: {game['teamA_name']} vs {game['teamB_name']}")
             
             # If no games were scheduled in this round, we're done
             if games_this_round == 0:
@@ -87,17 +89,16 @@ class Phase1ACoverage(BasePhase):
             
             logger.info(f"  Round {round_num} total: {games_this_round} games")
         
-        games_added = len([g for g in state.scheduled_games 
-                          if self.model.week_mapping.get(g.get('timeslot_id'), [None])[0] == week_num])
+        games_added = len(schedule.get_games_for_week(week_num))
         logger.info(f"\nPhase 1A Week {week_num}: Scheduled {games_added} games")
         
-        return state
+        return schedule
     
     def _find_next_game_for_division(
         self,
         division_id: int,
         teams_in_division: List[Dict],
-        state: SchedulingState,
+        schedule: Schedule,
         week_num: int
     ) -> Optional[Dict]:
         """
@@ -118,7 +119,7 @@ class Phase1ACoverage(BasePhase):
         """
         # Get teams without games this week, sorted by strength
         teams_without_games = self._get_unscheduled_teams_sorted(
-            teams_in_division, state, week_num
+            teams_in_division, schedule, week_num
         )
         
         if len(teams_without_games) < 2:
@@ -132,8 +133,8 @@ class Phase1ACoverage(BasePhase):
             for team2 in teams_without_games[i+1:]:
                 team2_id = team2['team_id']
                 
-                if not self._teams_played_recently(team1_id, team2_id, state, week_num, weeks_back=3):
-                    game = self._try_to_find_game(team1_id, team2_id, state, week_num)
+                if not self._teams_played_recently(team1_id, team2_id, schedule, week_num, weeks_back=3):
+                    game = self._try_to_find_game(team1_id, team2_id, schedule, week_num)
                     if game:
                         logger.info(f"      Found game (recent check passed): {team1['name']} vs {team2['name']}")
                         return game
@@ -141,7 +142,7 @@ class Phase1ACoverage(BasePhase):
             # Second pass: Try any team (ignore recent play constraint)
             for team2 in teams_without_games[i+1:]:
                 team2_id = team2['team_id']
-                game = self._try_to_find_game(team1_id, team2_id, state, week_num)
+                game = self._try_to_find_game(team1_id, team2_id, schedule, week_num)
                 if game:
                     logger.info(f"      Found game (fallback): {team1['name']} vs {team2['name']}")
                     return game
@@ -151,7 +152,7 @@ class Phase1ACoverage(BasePhase):
     def _get_unscheduled_teams_sorted(
         self,
         teams: List[Dict],
-        state: SchedulingState,
+        schedule: Schedule,
         week_num: int
     ) -> List[Dict]:
         """
@@ -167,13 +168,9 @@ class Phase1ACoverage(BasePhase):
         """
         # Find teams already scheduled this week
         scheduled_team_ids = set()
-        for game in state.scheduled_games:
-            timeslot_id = game.get('timeslot_id')
-            if timeslot_id and timeslot_id in self.model.week_mapping:
-                game_week = self.model.week_mapping[timeslot_id][0]
-                if game_week == week_num:
-                    scheduled_team_ids.add(game['teamA'])
-                    scheduled_team_ids.add(game['teamB'])
+        for game in schedule.get_games_for_week(week_num):
+            scheduled_team_ids.add(game['teamA'])
+            scheduled_team_ids.add(game['teamB'])
         
         # Filter to unscheduled teams
         unscheduled = [t for t in teams if t['team_id'] not in scheduled_team_ids]
@@ -228,7 +225,7 @@ class Phase1ACoverage(BasePhase):
         self,
         team1_id: int,
         team2_id: int,
-        state: SchedulingState,
+        schedule: Schedule,
         current_week: int,
         weeks_back: int = 3
     ) -> bool:
@@ -273,7 +270,7 @@ class Phase1ACoverage(BasePhase):
                                 break
         
         # Check currently scheduled games in this run
-        for game in state.scheduled_games:
+        for game in schedule.games:
             if self._game_involves_both_teams(game, team1_id, team2_id):
                 return True
         
@@ -295,7 +292,7 @@ class Phase1ACoverage(BasePhase):
         self,
         team1_id: int,
         team2_id: int,
-        state: SchedulingState,
+        schedule: Schedule,
         week_num: int
     ) -> Optional[Dict]:
         """
@@ -346,7 +343,7 @@ class Phase1ACoverage(BasePhase):
                 continue
             
             # Check if TSL is already used
-            if tsl_id in state.used_tsls:
+            if schedule.is_tsl_used(tsl_id):
                 continue
             
             available_tsls.append(tsl)
