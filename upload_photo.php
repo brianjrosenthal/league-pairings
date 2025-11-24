@@ -5,6 +5,7 @@
 
 require_once __DIR__ . '/partials.php';
 require_once __DIR__ . '/lib/Files.php';
+require_once __DIR__ . '/lib/UserManagement.php';
 Application::init();
 
 function redirect_back(string $returnTo, array $params = []): void {
