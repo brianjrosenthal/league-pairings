@@ -182,31 +182,43 @@ class ScheduleGenerator:
         """
         formatted = []
         
-        for game in games:
-            # Convert date to string if needed
-            game_date = game['date']
-            if hasattr(game_date, 'isoformat'):
-                game_date = game_date.isoformat()
-            elif hasattr(game_date, 'strftime'):
-                game_date = game_date.strftime('%Y-%m-%d')
-            else:
-                game_date = str(game_date)
-            
-            formatted.append({
-                "game_id": game['game_id'],
-                "date": game_date,
-                "time_modifier": game['modifier'],
-                "timeslot_id": game['timeslot_id'],
-                "location": game['location_name'],
-                "location_id": game['location_id'],
-                "division": game['division_name'],
-                "division_id": game['division_id'],
-                "team_a": game['teamA_name'],
-                "team_a_id": game['teamA'],
-                "team_b": game['teamB_name'],
-                "team_b_id": game['teamB'],
-                "weight": round(game.get('weight', 0), 3)
-            })
+        for i, game in enumerate(games):
+            try:
+                # Convert date to string if needed
+                game_date = game.get('date')
+                if game_date is None:
+                    logger.warning(f"Game {i} has no date field")
+                    game_date = 'UNKNOWN'
+                elif hasattr(game_date, 'isoformat'):
+                    game_date = game_date.isoformat()
+                elif hasattr(game_date, 'strftime'):
+                    game_date = game_date.strftime('%Y-%m-%d')
+                elif isinstance(game_date, str):
+                    game_date = game_date
+                else:
+                    # Fallback: convert to string
+                    logger.warning(f"Game {i} date is unexpected type: {type(game_date)}")
+                    game_date = str(game_date)
+                
+                formatted.append({
+                    "game_id": game.get('game_id'),
+                    "date": game_date,
+                    "time_modifier": game.get('modifier', ''),
+                    "timeslot_id": game.get('timeslot_id'),
+                    "location": game.get('location_name', 'Unknown'),
+                    "location_id": game.get('location_id'),
+                    "division": game.get('division_name', 'Unknown'),
+                    "division_id": game.get('division_id'),
+                    "team_a": game.get('teamA_name', 'Unknown'),
+                    "team_a_id": game.get('teamA'),
+                    "team_b": game.get('teamB_name', 'Unknown'),
+                    "team_b_id": game.get('teamB'),
+                    "weight": round(game.get('weight', 0), 3)
+                })
+            except Exception as e:
+                logger.error(f"Error formatting game {i}: {e}")
+                logger.error(f"Game data: {game}")
+                raise
         
         # Sort by date, then location
         formatted.sort(key=lambda g: (g['date'], g['location']))
