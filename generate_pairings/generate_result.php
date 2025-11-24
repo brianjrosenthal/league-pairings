@@ -278,7 +278,7 @@ header_html('Generated Schedule');
             </p>
             <textarea id="csvOutput" readonly style="width: 100%; height: 400px; font-family: monospace; font-size: 12px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; resize: vertical;"><?php
                 // Generate CSV content
-                echo "Date,Day,Division,Time,Location,Team A,Team B,Weight\n";
+                echo "Date,Day,Time,Division,Location,Team A,Team B\n";
                 
                 // Sort schedule by date and time
                 $csvGames = $schedule['schedule'];
@@ -298,14 +298,13 @@ header_html('Generated Schedule');
                     $formattedDate = date('m/d/Y', strtotime($date));
                     
                     // Escape CSV fields
-                    $division = str_replace('"', '""', $game['division_name']);
                     $time = str_replace('"', '""', $game['time_modifier'] ?? '');
+                    $division = str_replace('"', '""', $game['division_name']);
                     $location = str_replace('"', '""', $game['location_name']);
                     $teamA = str_replace('"', '""', $game['team_a_name']);
                     $teamB = str_replace('"', '""', $game['team_b_name']);
-                    $weight = $game['weight'] !== null ? number_format($game['weight'], 2) : '';
                     
-                    echo "\"{$formattedDate}\",\"{$dayOfWeek}\",\"{$division}\",\"{$time}\",\"{$location}\",\"{$teamA}\",\"{$teamB}\",{$weight}\n";
+                    echo "\"{$formattedDate}\",\"{$dayOfWeek}\",\"{$time}\",\"{$division}\",\"{$location}\",\"{$teamA}\",\"{$teamB}\"\n";
                 }
             ?></textarea>
             <div style="margin-top: 12px;">

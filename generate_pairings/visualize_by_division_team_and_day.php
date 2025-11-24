@@ -191,6 +191,7 @@ header_html('Schedule Visualization');
                                 <?php foreach ($allDates as $date): ?>
                                     <?php
                                     $teamId = $team['team_id'];
+                                    $teamName = $team['team_name'];
                                     $hasGame = isset($teamGames[$teamId]['by_date'][$date]);
                                     $gameInfo = $hasGame ? $teamGames[$teamId]['by_date'][$date] : null;
                                     
@@ -203,10 +204,10 @@ header_html('Schedule Visualization');
                                     <td style="border: 1px solid #ddd; padding: 6px 4px; background: <?= $bgColor ?>; text-align: center; font-size: 0.85em; line-height: 1.3;">
                                         <?php if ($hasGame): ?>
                                             <div style="white-space: nowrap;">
-                                                <?= h($gameInfo['location']) ?> vs
+                                                at <?= h($gameInfo['location']) ?>
                                             </div>
                                             <div style="white-space: nowrap;">
-                                                <?= h($gameInfo['opponent']) ?>
+                                                <?= h($teamName) ?> vs <?= h($gameInfo['opponent']) ?>
                                             </div>
                                             <div style="white-space: nowrap;">
                                                 <?= h($gameInfo['modifier']) ?> (<?= h($gameInfo['game_num']) ?>)
