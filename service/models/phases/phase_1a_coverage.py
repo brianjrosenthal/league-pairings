@@ -48,35 +48,44 @@ class Phase1ACoverage(BasePhase):
         Returns:
             New state with Phase 1A games added
         """
-        logger.info(f"Phase 1A Week {week_num}: Starting greedy scheduling")
+        logger.info(f"Phase 1A Week {week_num}: Starting greedy scheduling (round-robin)")
         
-        # Process each division
-        for division in self.model.divisions:
-            division_id = division['id']
-            division_name = division['name']
+        # Round-robin: schedule one game per division per round
+        total_games_scheduled = 0
+        round_num = 0
+        
+        while True:
+            round_num += 1
+            games_this_round = 0
             
-            teams_in_division = self.model.teams_by_division.get(division_id, [])
-            if not teams_in_division:
-                continue
+            logger.info(f"\n  Round {round_num}:")
             
-            logger.info(f"\n  Processing {division_name}: {len(teams_in_division)} teams")
-            
-            # Keep finding games until no more can be scheduled
-            games_scheduled = 0
-            while True:
+            # Try to schedule one game for each division
+            for division in self.model.divisions:
+                division_id = division['id']
+                division_name = division['name']
+                
+                teams_in_division = self.model.teams_by_division.get(division_id, [])
+                if not teams_in_division:
+                    continue
+                
+                # Try to find one game for this division
                 game = self._find_next_game_for_division(
                     division_id, teams_in_division, state, week_num
                 )
                 
                 if game:
                     state = state.add_game(game, self.model.week_mapping, self.model.day_mapping)
-                    logger.info(f"    ✓ Scheduled: {game['teamA_name']} vs {game['teamB_name']}")
-                    games_scheduled += 1
-                else:
-                    break
+                    logger.info(f"    ✓ {division_name}: {game['teamA_name']} vs {game['teamB_name']}")
+                    games_this_round += 1
+                    total_games_scheduled += 1
             
-            if games_scheduled == 0:
-                logger.info(f"    ✗ No games found for {division_name}")
+            # If no games were scheduled in this round, we're done
+            if games_this_round == 0:
+                logger.info(f"  No games scheduled in round {round_num}, stopping")
+                break
+            
+            logger.info(f"  Round {round_num} total: {games_this_round} games")
         
         games_added = len([g for g in state.scheduled_games 
                           if self.model.week_mapping.get(g.get('timeslot_id'), [None])[0] == week_num])
