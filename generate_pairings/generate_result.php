@@ -309,6 +309,7 @@ header_html('Generated Schedule');
             ?></textarea>
             <div style="margin-top: 12px;">
                 <button type="button" class="button primary" onclick="copyCSV()">Copy to Clipboard</button>
+                <button type="button" class="button primary" onclick="downloadCSV()">Download</button>
                 <button type="button" class="button" onclick="closeExportModal()">Close</button>
             </div>
             <div id="copySuccess" style="display: none; margin-top: 12px; padding: 8px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 4px; color: #155724;">
@@ -345,6 +346,46 @@ function copyCSV() {
     } catch (err) {
         alert('Failed to copy. Please manually select and copy the text.');
     }
+}
+
+function downloadCSV() {
+    const csvContent = document.getElementById('csvOutput').value;
+    
+    // Generate filename with date range
+    const startDate = '<?= h($startDate) ?>';
+    const endDate = '<?= h($endDate) ?>';
+    const filename = 'schedule_' + startDate + '_to_' + endDate + '.csv';
+    
+    // Create a form and submit it
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/generate_pairings/download_csv.php';
+    
+    // Add CSRF token
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrf';
+    csrfInput.value = '<?= h(csrf_token()) ?>';
+    form.appendChild(csrfInput);
+    
+    // Add CSV content
+    const contentInput = document.createElement('input');
+    contentInput.type = 'hidden';
+    contentInput.name = 'csv_content';
+    contentInput.value = csvContent;
+    form.appendChild(contentInput);
+    
+    // Add filename
+    const filenameInput = document.createElement('input');
+    filenameInput.type = 'hidden';
+    filenameInput.name = 'filename';
+    filenameInput.value = filename;
+    form.appendChild(filenameInput);
+    
+    // Submit form
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
 }
 
 // Close modal when clicking outside of it
