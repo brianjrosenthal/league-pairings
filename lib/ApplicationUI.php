@@ -51,6 +51,7 @@ class ApplicationUI {
         if ($u) {
             $navLeft[] = $link('/index.php','Home');
             $navLeft[] = $link('/generate_pairings/step1.php','Generate Pairings');
+            $navLeft[] = $link('/visualize_schedule.php','Visualize Schedule');
             
             // Admin toggle link (for admins only) - appears on right side
             if (!empty($u['is_admin'])) {
