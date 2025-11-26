@@ -3,7 +3,7 @@ Multi-phase scheduler with weekly and daily constraints.
 
 This scheduler implements a two-phase approach:
 1. Phase 1: Ensure every available team plays at least 1 game per week
-2. Phase 2: Fill remaining capacity up to max 3 games/week, 1 game/day per team
+2. Phase 2: Fill remaining capacity up to max 2 games/week, 1 game/day per team
 """
 
 from typing import Dict, List, Set, Tuple
@@ -20,7 +20,7 @@ class MultiPhaseORToolsScheduler:
     Multi-phase scheduler using Google OR-Tools CP-SAT.
     
     Handles complex constraints:
-    - 1-3 games per team per week
+    - 1-2 games per team per week
     - Max 1 game per team per day
     - Season game balance (priority to underplayed teams)
     - Two-phase optimization for minimum coverage then capacity filling
@@ -41,7 +41,7 @@ class MultiPhaseORToolsScheduler:
         
         # Extract config parameters
         self.min_games_per_week = config.get('min_games_per_week', 1)
-        self.max_games_per_week = config.get('max_games_per_week', 3)
+        self.max_games_per_week = config.get('max_games_per_week', 2)
         self.max_games_per_day = config.get('max_games_per_day', 1)
     
     def schedule(self, feasible_games: List[Dict]) -> List[Dict]:

@@ -47,7 +47,7 @@ class MultiPhaseController:
         
         # Extract config
         self.min_games_per_week = config.get('min_games_per_week', 1)
-        self.max_games_per_week = config.get('max_games_per_week', 3)
+        self.max_games_per_week = config.get('max_games_per_week', 2)
         self.max_games_per_day = config.get('max_games_per_day', 1)
         
         # Initialize all phases
@@ -86,7 +86,7 @@ class MultiPhaseController:
         phase_timeouts = self._calculate_phase_timeouts(time_per_week)
         
         # Initialize schedule with constraint enforcement
-        schedule = Schedule(self.model)
+        schedule = Schedule(self.model, self.max_games_per_week)
         
         # Process each week
         for week_num in all_weeks:

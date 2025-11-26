@@ -21,7 +21,7 @@ class Phase1BOptimal(BasePhase):
     Phase 1B: Fill-in scheduling for remaining unscheduled teams.
     
     Goal: Schedule as many unscheduled teams as possible.
-    Method: For each unscheduled team, try to pair with ANY team in division (max 3 games/week).
+    Method: For each unscheduled team, try to pair with ANY team in division (max 2 games/week).
     Priority: Prefer matchups not played recently.
     """
     
@@ -122,7 +122,7 @@ class Phase1BOptimal(BasePhase):
         Try to schedule a specific unscheduled team.
         
         Attempts to pair with ANY other team in division (scheduled or unscheduled),
-        as long as that team has < 3 games this week.
+        as long as that team has < max_games_per_week this week.
         
         Two-pass approach:
         1. Try teams not played recently (last 3 weeks)

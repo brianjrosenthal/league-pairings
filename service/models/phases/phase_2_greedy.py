@@ -20,7 +20,7 @@ class Phase2Greedy(BasePhase):
     """
     Phase 2: Greedy capacity filling with fair distribution.
     
-    Goal: Maximize TSL utilization while respecting weekly/daily limits.
+    Goal: Maximize TSL utilization while respecting weekly/daily limits (max 2 games/week).
     Method: Round-robin across divisions using generators to maintain position.
     """
     
@@ -320,7 +320,7 @@ class Phase2Greedy(BasePhase):
         Note: Schedule class will handle all constraint validation including:
         - TSL uniqueness (no double-booking)
         - Daily game limits (max 1 per team per day)
-        - Weekly game limits (max 3 per team per week)
+        - Weekly game limits (max 2 per team per week)
         - Division matching
         - No self-play
         

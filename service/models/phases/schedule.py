@@ -20,19 +20,21 @@ class Schedule:
     Maintains games with indexed lookups to enforce:
     1. Only one game per timeslot-location (TSL)
     2. Only one game per team per day
-    3. Max 3 games per team per week
+    3. Max games per team per week (configurable, default 2)
     4. Teams only play within their division
     5. Teams cannot play themselves
     """
     
-    def __init__(self, model):
+    def __init__(self, model, max_games_per_week: int = 2):
         """
         Initialize schedule.
         
         Args:
             model: DataModel instance with divisions, teams, mappings, etc.
+            max_games_per_week: Maximum games per team per week (default 2)
         """
         self.model = model
+        self.max_games_per_week = max_games_per_week
         self.games = []  # All games in order
         
         # Indexes for efficient constraint checking
@@ -117,17 +119,17 @@ class Schedule:
             if self.games_by_team_day.get((team_b, day)):
                 violations.append(f"Team {team_b} already has game on {day}")
         
-        # Constraint 3: Max 3 games per team per week
+        # Constraint 3: Max games per team per week
         if timeslot_id and timeslot_id in self.model.week_mapping:
             week_num = self.model.week_mapping[timeslot_id][0]
             
             team_a_week_games = len(self.games_by_team_week.get((team_a, week_num), []))
-            if team_a_week_games >= 3:
-                violations.append(f"Team {team_a} already has 3 games in week {week_num}")
+            if team_a_week_games >= self.max_games_per_week:
+                violations.append(f"Team {team_a} already has {self.max_games_per_week} games in week {week_num}")
             
             team_b_week_games = len(self.games_by_team_week.get((team_b, week_num), []))
-            if team_b_week_games >= 3:
-                violations.append(f"Team {team_b} already has 3 games in week {week_num}")
+            if team_b_week_games >= self.max_games_per_week:
+                violations.append(f"Team {team_b} already has {self.max_games_per_week} games in week {week_num}")
         
         # Constraint 4: Teams only play within their division
         if team_a and team_b:
