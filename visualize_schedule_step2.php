@@ -81,7 +81,7 @@ header_html('Map CSV Columns');
     </div>
     
     <form method="POST" action="/visualize_schedule_result.php">
-        <?= csrf_field() ?>
+        <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
         
         <!-- Store CSV content in hidden field -->
         <input type="hidden" name="csv_content" value="<?= h($csvContent) ?>">

@@ -17,7 +17,7 @@ header_html('Visualize Schedule from CSV');
     <p>Upload a CSV file containing your schedule data to visualize it.</p>
     
     <form method="POST" action="/visualize_schedule_step2.php" enctype="multipart/form-data" style="margin-top: 20px;">
-        <?= csrf_field() ?>
+        <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
         
         <div class="form-group">
             <label for="csv_file">CSV File *</label>
