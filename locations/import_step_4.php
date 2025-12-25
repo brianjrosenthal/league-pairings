@@ -37,10 +37,6 @@ try {
     
     // Process each item based on its action
     foreach ($previewData as $item) {
-        if ($item['is_duplicate']) {
-            continue; // Skip duplicates
-        }
-        
         try {
             $locationId = null;
             
@@ -48,15 +44,19 @@ try {
                 // Create new location
                 $locationId = LocationManagement::createLocation($ctx, $item['name'], $item['description']);
                 $addedCount++;
-            } elseif ($item['action'] === 'update') {
-                // Update existing location's description
+            } else {
+                // 'update' or 'duplicate' - both are existing locations
                 $existingLocation = LocationManagement::findByName($item['name']);
-                if ($existingLocation) {
-                    LocationManagement::updateLocationDescription($ctx, (int)$existingLocation['id'], $item['description']);
-                    $locationId = (int)$existingLocation['id'];
+                if (!$existingLocation) {
+                    throw new Exception("Location '{$item['name']}' not found");
+                }
+                
+                $locationId = (int)$existingLocation['id'];
+                
+                // Only update description if it's different (not a duplicate)
+                if (!$item['is_duplicate']) {
+                    LocationManagement::updateLocationDescription($ctx, $locationId, $item['description']);
                     $updatedCount++;
-                } else {
-                    throw new Exception("Location '{$item['name']}' not found for update");
                 }
             }
             
