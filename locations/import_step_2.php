@@ -21,9 +21,10 @@ try {
     // Get CSV headers
     $csvHeaders = CsvImportHelper::getCSVHeaders($filePath, $delimiter);
     
-    // Auto-detect "name" and "description" columns (case-insensitive)
+    // Auto-detect "name", "description", and "division_affinities" columns (case-insensitive)
     $defaultNameColumn = '';
     $defaultDescriptionColumn = '';
+    $defaultDivisionAffinitiesColumn = '';
     
     foreach ($csvHeaders as $header) {
         $headerLower = strtolower($header);
@@ -33,12 +34,17 @@ try {
         if ($headerLower === 'description' && $defaultDescriptionColumn === '') {
             $defaultDescriptionColumn = $header;
         }
+        // Check for division affinity column variants
+        if (in_array($headerLower, ['division_affinities', 'divisions', 'division affinity', 'division']) && $defaultDivisionAffinitiesColumn === '') {
+            $defaultDivisionAffinitiesColumn = $header;
+        }
     }
 } catch (Exception $e) {
     $err = $e->getMessage();
     $csvHeaders = [];
     $defaultNameColumn = '';
     $defaultDescriptionColumn = '';
+    $defaultDivisionAffinitiesColumn = '';
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -48,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Get column mapping
         $nameColumn = $_POST['name_column'] ?? '';
         $descriptionColumn = $_POST['description_column'] ?? '';
+        $divisionAffinitiesColumn = $_POST['division_affinities_column'] ?? '';
         
         if ($nameColumn === '') {
             throw new InvalidArgumentException('Please select a column for Location Name.');
@@ -57,10 +64,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new InvalidArgumentException('Please select a column for Description.');
         }
         
-        // Store mapping in session
+        // Store mapping in session (division_affinities is optional)
         $_SESSION['location_import']['column_mapping'] = [
             'name' => $nameColumn,
-            'description' => $descriptionColumn
+            'description' => $descriptionColumn,
+            'division_affinities' => $divisionAffinitiesColumn
         ];
         
         // Redirect to step 3
@@ -112,6 +120,16 @@ header_html('Import Locations - Step 2');
         <?php endforeach; ?>
       </select>
       <small>For existing locations with different descriptions, the description will be updated</small>
+    </label>
+
+    <label>Division Affinities (optional)
+      <select name="division_affinities_column">
+        <option value="">-- No Division Affinities --</option>
+        <?php foreach ($csvHeaders as $header): ?>
+          <option value="<?= h($header) ?>" <?= ($header === $defaultDivisionAffinitiesColumn) ? 'selected' : '' ?>><?= h($header) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <small>Comma-separated list of division names (e.g., "Division A, Division B")</small>
     </label>
 
     <div class="actions">

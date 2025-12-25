@@ -24,8 +24,13 @@ try {
     // Get existing locations
     $existingLocations = LocationManagement::getAllLocationData(); // Returns array [name => description]
     
+    // Get all divisions for validation
+    $divisionsMap = LocationManagement::getAllDivisionsMap(); // Returns array [lowercase_name => id]
+    
     // Read CSV file
     $csvData = CsvImportHelper::parseCSV($filePath, $delimiter);
+    
+    $hasBlockingErrors = false;
     
     $lineNumber = 1; // Start at 1 for header
     foreach ($csvData as $row) {
@@ -45,13 +50,54 @@ try {
             'description' => $description,
             'is_duplicate' => false,
             'will_update' => false,
-            'action' => 'add' // add, duplicate, or update
+            'action' => 'add', // add, duplicate, or update
+            'division_affinities' => [],
+            'division_affinities_raw' => '',
+            'has_invalid_divisions' => false
         ];
         
         // Validate required fields
         if ($name === '') {
             // Skip rows without names but don't error
             continue;
+        }
+        
+        // Parse division affinities if column is specified
+        if (!empty($mapping['division_affinities'])) {
+            $divisionAffinitiesRaw = trim($row[$mapping['division_affinities']] ?? '');
+            $item['division_affinities_raw'] = $divisionAffinitiesRaw;
+            
+            if ($divisionAffinitiesRaw !== '') {
+                // Split by comma and trim each
+                $divisionNames = array_map('trim', explode(',', $divisionAffinitiesRaw));
+                // Filter out empty strings
+                $divisionNames = array_filter($divisionNames, fn($n) => $n !== '');
+                
+                // Get existing location to check for existing affinities
+                $existingLocation = LocationManagement::findByName($name);
+                $existingAffinities = [];
+                if ($existingLocation) {
+                    $existingAffinitiesData = LocationManagement::getAffinitiesForLocation((int)$existingLocation['id']);
+                    $existingAffinities = array_map(fn($a) => strtolower($a['name']), $existingAffinitiesData);
+                }
+                
+                foreach ($divisionNames as $divisionName) {
+                    $divisionNameLower = strtolower($divisionName);
+                    $valid = isset($divisionsMap[$divisionNameLower]);
+                    $alreadyExists = in_array($divisionNameLower, $existingAffinities);
+                    
+                    $item['division_affinities'][] = [
+                        'name' => $divisionName,
+                        'valid' => $valid,
+                        'already_exists' => $alreadyExists
+                    ];
+                    
+                    if (!$valid) {
+                        $item['has_invalid_divisions'] = true;
+                        $hasBlockingErrors = true;
+                    }
+                }
+            }
         }
         
         // Check if location already exists
@@ -88,6 +134,10 @@ header_html('Import Locations - Step 3');
 <?php if ($msg): ?><p class="flash"><?=h($msg)?></p><?php endif; ?>
 <?php if ($err): ?><p class="error"><?=h($err)?></p><?php endif; ?>
 
+<?php if ($hasBlockingErrors): ?>
+  <p class="error"><strong>⚠️ IMPORT BLOCKED:</strong> There are invalid division names in your CSV. Please fix these errors and try again.</p>
+<?php endif; ?>
+
 <div class="card">
   <p><strong>File:</strong> <?= h($importData['original_filename']) ?></p>
   <p><strong>Total rows:</strong> <?= count($previewData) ?></p>
@@ -105,22 +155,40 @@ header_html('Import Locations - Step 3');
         <th>Line</th>
         <th>Location Name</th>
         <th>Description</th>
+        <th>Division Affinities</th>
         <th>Status</th>
       </tr>
     </thead>
     <tbody>
       <?php foreach ($previewData as $item): ?>
-        <tr style="<?= $item['will_update'] ? 'background:#e3f2fd;' : ($item['is_duplicate'] ? 'background:#fff3e0;' : '') ?>">
+        <tr style="<?= $item['has_invalid_divisions'] ? 'background:#ffebee;' : ($item['will_update'] ? 'background:#e3f2fd;' : ($item['is_duplicate'] ? 'background:#fff3e0;' : '')) ?>">
           <td><?= (int)$item['line_number'] ?></td>
           <td><?= h($item['name']) ?></td>
-          <td><?= h($item['description']) ?></td>
-          <td>
-            <?php if ($item['will_update']): ?>
-              <span style="color:#1976d2;">🔄 Will update description</span>
-            <?php elseif ($item['is_duplicate']): ?>
-              <span style="color:#f57c00;">⚠️ Duplicate (will be ignored)</span>
+          <td class="small"><?= h($item['description']) ?></td>
+          <td class="small">
+            <?php if (!empty($item['division_affinities'])): ?>
+              <?php foreach ($item['division_affinities'] as $aff): ?>
+                <?php if (!$aff['valid']): ?>
+                  <span style="color:#c62828;"><strong>❌ <?= h($aff['name']) ?></strong> (invalid)</span><br>
+                <?php elseif ($aff['already_exists']): ?>
+                  <span style="color:#f57c00;">⚠️ <?= h($aff['name']) ?> (already exists)</span><br>
+                <?php else: ?>
+                  <span style="color:#388e3c;">✓ <?= h($aff['name']) ?></span><br>
+                <?php endif; ?>
+              <?php endforeach; ?>
             <?php else: ?>
-              <span style="color:#388e3c;">✓ Will be added</span>
+              <span style="color:#999;">—</span>
+            <?php endif; ?>
+          </td>
+          <td>
+            <?php if ($item['has_invalid_divisions']): ?>
+              <span style="color:#c62828;"><strong>❌ ERROR: Invalid division(s)</strong></span>
+            <?php elseif ($item['will_update']): ?>
+              <span style="color:#1976d2;">🔄 Will update</span>
+            <?php elseif ($item['is_duplicate']): ?>
+              <span style="color:#f57c00;">⚠️ Duplicate (ignored)</span>
+            <?php else: ?>
+              <span style="color:#388e3c;">✓ Will add</span>
             <?php endif; ?>
           </td>
         </tr>
@@ -134,7 +202,7 @@ header_html('Import Locations - Step 3');
   <form method="post" action="/locations/import_step_4.php">
     <input type="hidden" name="csrf" value="<?=h(csrf_token())?>">
     <div class="actions">
-      <button class="primary" type="submit">Commit Import</button>
+      <button class="primary" type="submit" <?= $hasBlockingErrors ? 'disabled' : '' ?>>Commit Import</button>
       <a class="button" href="/locations/import_step_2.php">← Back</a>
       <a class="button" href="/locations/">Cancel</a>
     </div>

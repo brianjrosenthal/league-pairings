@@ -86,13 +86,22 @@ header_html('Import Locations - Step 1');
   <p>Your CSV file should contain the following columns:</p>
   <ul>
     <li><strong>name</strong> - The location name (required)</li>
-    <li><strong>description</strong> - The location description (optional)</li>
+    <li><strong>description</strong> - The location description (required)</li>
+    <li><strong>division_affinities</strong> - Comma-separated list of division names (optional)</li>
   </ul>
-  <p class="small">Example:</p>
+  <p class="small">Example without division affinities:</p>
   <pre style="background:#f5f5f5;padding:12px;border-radius:4px;">name,description
 Court A,Main competition court
 Court B,Practice court
 Field 1,Outdoor field</pre>
+  
+  <p class="small" style="margin-top:16px;">Example with division affinities:</p>
+  <pre style="background:#f5f5f5;padding:12px;border-radius:4px;">name,description,division_affinities
+Court A,Main competition court,"Division A, Division B"
+Court B,Practice court,Division C
+Field 1,Outdoor field,"Division A, Division C"</pre>
+  
+  <p class="small" style="margin-top:8px;"><strong>Note:</strong> If a location already exists, only the description will be updated. Division affinities will be added if they don't already exist.</p>
 </div>
 
 <?php footer_html(); ?>

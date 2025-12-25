@@ -248,4 +248,32 @@ class LocationManagement {
         $st->execute([$locationId]);
         return $st->fetchAll();
     }
+
+    // === Import Helper Methods ===
+
+    // Get all divisions as a lookup map (name => id) for import validation
+    public static function getAllDivisionsMap(): array {
+        $sql = 'SELECT id, name FROM divisions ORDER BY name';
+        $st = self::pdo()->prepare($sql);
+        $st->execute();
+        $divisions = $st->fetchAll();
+        
+        $map = [];
+        foreach ($divisions as $division) {
+            // Store with lowercase key for case-insensitive lookup
+            $map[strtolower($division['name'])] = (int)$division['id'];
+        }
+        return $map;
+    }
+
+    // Get division ID by name (case-insensitive)
+    public static function getDivisionIdByName(string $name): ?int {
+        $name = self::str($name);
+        if ($name === '') return null;
+        
+        $st = self::pdo()->prepare('SELECT id FROM divisions WHERE LOWER(name) = LOWER(?) LIMIT 1');
+        $st->execute([$name]);
+        $result = $st->fetchColumn();
+        return $result ? (int)$result : null;
+    }
 }

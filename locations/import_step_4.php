@@ -26,9 +26,14 @@ $addedCount = 0;
 $updatedCount = 0;
 $errorCount = 0;
 $errors = [];
+$affinitiesAddedCount = 0;
+$affinitiesSkippedCount = 0;
 
 try {
     $ctx = UserContext::getLoggedInUserContext();
+    
+    // Get divisions map for affinity processing
+    $divisionsMap = LocationManagement::getAllDivisionsMap();
     
     // Process each item based on its action
     foreach ($previewData as $item) {
@@ -37,18 +42,54 @@ try {
         }
         
         try {
+            $locationId = null;
+            
             if ($item['action'] === 'add') {
                 // Create new location
-                LocationManagement::createLocation($ctx, $item['name'], $item['description']);
+                $locationId = LocationManagement::createLocation($ctx, $item['name'], $item['description']);
                 $addedCount++;
             } elseif ($item['action'] === 'update') {
                 // Update existing location's description
                 $existingLocation = LocationManagement::findByName($item['name']);
                 if ($existingLocation) {
                     LocationManagement::updateLocationDescription($ctx, (int)$existingLocation['id'], $item['description']);
+                    $locationId = (int)$existingLocation['id'];
                     $updatedCount++;
                 } else {
                     throw new Exception("Location '{$item['name']}' not found for update");
+                }
+            }
+            
+            // Process division affinities if we have a location ID
+            if ($locationId && !empty($item['division_affinities'])) {
+                foreach ($item['division_affinities'] as $affinity) {
+                    // Only process valid divisions
+                    if (!$affinity['valid']) {
+                        continue;
+                    }
+                    
+                    // Skip if already exists
+                    if ($affinity['already_exists']) {
+                        $affinitiesSkippedCount++;
+                        continue;
+                    }
+                    
+                    // Get division ID
+                    $divisionId = $divisionsMap[strtolower($affinity['name'])] ?? null;
+                    if ($divisionId) {
+                        try {
+                            // Check if affinity exists (in case it was added during this import)
+                            if (!LocationManagement::hasAffinity($locationId, $divisionId)) {
+                                LocationManagement::addAffinity($ctx, $locationId, $divisionId);
+                                $affinitiesAddedCount++;
+                            } else {
+                                $affinitiesSkippedCount++;
+                            }
+                        } catch (Exception $e) {
+                            // Silently skip affinity errors (already exists, etc.)
+                            $affinitiesSkippedCount++;
+                        }
+                    }
                 }
             }
             
@@ -67,7 +108,14 @@ try {
     unset($_SESSION['location_import']);
     
     // Redirect with success message
-    $msg = "Import complete! Added {$addedCount} location(s), updated {$updatedCount} location(s).";
+    $msg = "Import complete! Added {$addedCount} location(s), updated {$updatedCount} location(s)";
+    if ($affinitiesAddedCount > 0 || $affinitiesSkippedCount > 0) {
+        $msg .= ", added {$affinitiesAddedCount} division affinity(ies)";
+        if ($affinitiesSkippedCount > 0) {
+            $msg .= " ({$affinitiesSkippedCount} already existed)";
+        }
+    }
+    $msg .= ".";
     if ($errorCount > 0) {
         $msg .= " {$errorCount} error(s) occurred.";
     }
