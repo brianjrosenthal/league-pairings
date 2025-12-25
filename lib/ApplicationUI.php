@@ -101,8 +101,8 @@ class ApplicationUI {
             echo '</div>';
             echo '<nav class="admin-submenu" id="adminSubmenu">';
             echo $link('/divisions/','Divisions');
-            echo $link('/teams/','Teams');
             echo $link('/locations/','Locations');
+            echo $link('/teams/','Teams');
             echo $link('/timeslots/','Timeslots');
             echo '<span class="admin-submenu-divider"></span>';
             echo $link('/admin/users.php','Users');

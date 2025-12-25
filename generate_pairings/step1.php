@@ -117,20 +117,20 @@ header_html('Generate Pairings');
 </div>
 
 <h3 style="margin-top: 32px; margin-bottom: 16px;">How it works</h3>
-<p class="small" style="margin-bottom: 24px;">
+<p style="margin-bottom: 24px;">
     The pairing generation system uses a sophisticated multi-phase scheduling algorithm to create optimal game schedules.
 </p>
 
 <div class="card" style="margin-bottom: 16px;">
     <h4>Step 1: Configuration</h4>
-    <p class="small">
+    <p>
         You specify the date range for the schedule and set an optimization timeout. The system defaults to scheduling games from the next Sunday through the following Thursday (skipping the next 6 days to allow preparation time).
     </p>
 </div>
 
 <div class="card" style="margin-bottom: 16px;">
     <h4>Step 2: Review & Validation</h4>
-    <p class="small">
+    <p>
         The system analyzes your data and shows:
     </p>
     <ul class="small" style="margin-left: 20px; margin-top: 8px;">
@@ -138,26 +138,26 @@ header_html('Generate Pairings');
         <li>Team availability for each division</li>
         <li>Warnings about teams with no available timeslots</li>
     </ul>
-    <p class="small" style="margin-top: 8px;">
+    <p style="margin-top: 8px;">
         This helps you catch data issues before generating the schedule.
     </p>
 </div>
 
 <h4 style="margin-top: 24px; margin-bottom: 8px;">Step 3: Schedule Generation</h4>
-<p class="small" style="margin-bottom: 16px;">
+<p style="margin-bottom: 16px;">
     The system uses the <strong>TrueMultiPhaseScheduler</strong> algorithm, which runs in four phases:
 </p>
 
 <h4 style="margin-top: 24px; margin-bottom: 8px;">Step 3 - Phase 1: Try to schedule at least one game per team.</h4>
-<p class="small" style="margin-bottom: 16px;">
+<p style="margin-bottom: 16px;">
     The goal of Phase 1 is to make sure each team (for a particular bracket) plays one game during the week.
 </p>
 
 <div class="card" style="margin-bottom: 16px;">
     <h5>Phase 1A: Maximum Coverage (10% of time)</h5>
-    <p class="small" style="margin-bottom: 8px;"><strong>Goal:</strong> Maximize the number of teams that play at least once per week.</p>
-    <p class="small" style="margin-bottom: 8px;"><strong>Algorithm:</strong> Greedy round-robin approach</p>
-    <p class="small" style="margin-bottom: 8px;"><strong>Process:</strong></p>
+    <p style="margin-bottom: 8px;"><strong>Goal:</strong> Maximize the number of teams that play at least once per week.</p>
+    <p style="margin-bottom: 8px;"><strong>Algorithm:</strong> Greedy round-robin approach</p>
+    <p style="margin-bottom: 8px;"><strong>Process:</strong></p>
     <ol class="small" style="margin-left: 20px;">
         <li><strong>Round-robin scheduling:</strong> The algorithm processes divisions in rounds, attempting to schedule one game per division in each round</li>
         <li><strong>Team selection:</strong> Within each division, teams are sorted by strength (using previous year ranking adjusted by current season wins/losses)</li>
@@ -189,9 +189,9 @@ header_html('Generate Pairings');
 
 <div class="card" style="margin-bottom: 16px;">
     <h5>Phase 1B: Comprehensive Optimal (10% of time)</h5>
-    <p class="small" style="margin-bottom: 8px;"><strong>Goal:</strong> Schedule as many unscheduled teams as possible (teams that didn't get scheduled in Phase 1A).</p>
-    <p class="small" style="margin-bottom: 8px;"><strong>Algorithm:</strong> Fill-in scheduling using greedy approach</p>
-    <p class="small" style="margin-bottom: 8px;"><strong>Process:</strong></p>
+    <p style="margin-bottom: 8px;"><strong>Goal:</strong> Schedule as many unscheduled teams as possible (teams that didn't get scheduled in Phase 1A).</p>
+    <p style="margin-bottom: 8px;"><strong>Algorithm:</strong> Fill-in scheduling using greedy approach</p>
+    <p style="margin-bottom: 8px;"><strong>Process:</strong></p>
     <ol class="small" style="margin-left: 20px;">
         <li><strong>Identify unscheduled teams:</strong> For each division, find teams that have no games scheduled this week</li>
         <li><strong>Process each unscheduled team:</strong> For each team without a game:
@@ -226,9 +226,9 @@ header_html('Generate Pairings');
 
 <div class="card" style="margin-bottom: 16px;">
     <h5>Phase 1C: Strategic Displacement (10% of time)</h5>
-    <p class="small" style="margin-bottom: 8px;"><strong>Goal:</strong> Schedule remaining unscheduled teams by substituting them into existing games.</p>
-    <p class="small" style="margin-bottom: 8px;"><strong>Algorithm:</strong> Team substitution with guaranteed rescheduling</p>
-    <p class="small" style="margin-bottom: 8px;"><strong>Process:</strong></p>
+    <p style="margin-bottom: 8px;"><strong>Goal:</strong> Schedule remaining unscheduled teams by substituting them into existing games.</p>
+    <p style="margin-bottom: 8px;"><strong>Algorithm:</strong> Team substitution with guaranteed rescheduling</p>
+    <p style="margin-bottom: 8px;"><strong>Process:</strong></p>
     <ol class="small" style="margin-left: 20px;">
         <li><strong>Identify unscheduled teams:</strong> For each division, find teams still without games this week</li>
         <li><strong>Find substitution opportunities:</strong> For each unscheduled team:
@@ -265,9 +265,9 @@ header_html('Generate Pairings');
 
 <div class="card" style="margin-bottom: 16px;">
     <h5>Phase 2: Greedy Capacity Filling (70% of time)</h5>
-    <p class="small" style="margin-bottom: 8px;"><strong>Goal:</strong> Maximize timeslot-location utilization while respecting weekly and daily limits.</p>
-    <p class="small" style="margin-bottom: 8px;"><strong>Algorithm:</strong> Round-robin with generator-based fair distribution</p>
-    <p class="small" style="margin-bottom: 8px;"><strong>Process:</strong></p>
+    <p style="margin-bottom: 8px;"><strong>Goal:</strong> Maximize timeslot-location utilization while respecting weekly and daily limits.</p>
+    <p style="margin-bottom: 8px;"><strong>Algorithm:</strong> Round-robin with generator-based fair distribution</p>
+    <p style="margin-bottom: 8px;"><strong>Process:</strong></p>
     <ol class="small" style="margin-left: 20px;">
         <li><strong>Round-robin scheduling:</strong> Process divisions in rounds, attempting to schedule one game per division in each round</li>
         <li><strong>Maintain position with generators:</strong> Use Python generators to remember where each division left off between rounds, ensuring fair distribution</li>
