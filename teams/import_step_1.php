@@ -80,7 +80,7 @@ header_html('Import Teams - Step 1');
     <input type="hidden" name="csrf" value="<?=h(csrf_token())?>">
     <input type="hidden" name="input_method" id="input_method" value="file">
     
-    <div style="display:flex;align-items:center;gap:20px;margin-bottom:20px;">
+    <div style="display:flex;align-items:center;gap:20px;margin-bottom:0px;">
       <label style="margin:0;">Input Method</label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;">
         <input type="radio" name="input_method_radio" value="file" checked onchange="toggleInputMethod('file')">
