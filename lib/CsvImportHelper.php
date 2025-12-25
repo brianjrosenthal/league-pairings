@@ -50,6 +50,33 @@ class CsvImportHelper {
         return $tempFile;
     }
     
+    // Save pasted CSV content to temporary file
+    public static function savePastedCsv(string $csvContent): string {
+        $csvContent = trim($csvContent);
+        
+        if ($csvContent === '') {
+            throw new RuntimeException('CSV content is empty.');
+        }
+        
+        // Create temp directory if it doesn't exist
+        $tempDir = __DIR__ . '/../logs/csv_imports';
+        if (!is_dir($tempDir)) {
+            mkdir($tempDir, 0755, true);
+        }
+        
+        // Generate unique filename
+        $uniqueId = uniqid('csv_pasted_', true);
+        $tempFile = $tempDir . '/' . $uniqueId . '.csv';
+        
+        // Write content to file
+        $bytes = file_put_contents($tempFile, $csvContent);
+        if ($bytes === false) {
+            throw new RuntimeException('Failed to save CSV content.');
+        }
+        
+        return $tempFile;
+    }
+    
     // Get CSV headers (first row)
     public static function getCSVHeaders(string $filePath, string $delimiter = ','): array {
         if (!file_exists($filePath)) {
