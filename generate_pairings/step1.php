@@ -148,6 +148,11 @@ header_html('Generate Pairings');
     The system uses the <strong>TrueMultiPhaseScheduler</strong> algorithm, which runs in four phases:
 </p>
 
+<h4 style="margin-top: 24px; margin-bottom: 8px;">Step 3 - Phase 1: Try to schedule at least one game per team.</h4>
+<p class="small" style="margin-bottom: 16px;">
+    The goal of Phase 1 is to make sure each team (for a particular bracket) plays one game during the week.
+</p>
+
 <div class="card" style="margin-bottom: 16px;">
     <h5>Phase 1A: Maximum Coverage (10% of time)</h5>
     <p class="small" style="margin-bottom: 8px;"><strong>Goal:</strong> Maximize the number of teams that play at least once per week.</p>
