@@ -171,8 +171,15 @@ header_html('Generate Pairings');
             <ul style="margin-left: 20px; margin-top: 4px;">
                 <li>Identify timeslots where both teams are available</li>
                 <li>Filter to timeslots in the current week that haven't been used yet</li>
-                <li><strong>Prefer Sunday timeslots</strong> when available</li>
-                <li>Randomly select from available options</li>
+                <li><strong>Cascading priority system:</strong>
+                    <ol style="margin-left: 20px; margin-top: 4px;">
+                        <li><strong>Preferred location + Sunday</strong> (ideal: team's home gym on Sunday)</li>
+                        <li><strong>Preferred location</strong> (team's home gym on any day)</li>
+                        <li><strong>Sunday</strong> (any available location)</li>
+                        <li><strong>Any available timeslot-location</strong> (fallback)</li>
+                    </ol>
+                </li>
+                <li>If both teams have different preferred locations, both are considered equally</li>
             </ul>
         </li>
         <li><strong>Constraint enforcement:</strong> Each team plays at most once per week in this phase</li>
