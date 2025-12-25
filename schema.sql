@@ -113,12 +113,15 @@ CREATE TABLE teams (
   name VARCHAR(255) NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   previous_year_ranking INT NULL,
+  preferred_location_id INT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_teams_division FOREIGN KEY (division_id) REFERENCES divisions(id) ON DELETE RESTRICT
+  CONSTRAINT fk_teams_division FOREIGN KEY (division_id) REFERENCES divisions(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_teams_preferred_location FOREIGN KEY (preferred_location_id) REFERENCES locations(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 CREATE INDEX idx_teams_division_id ON teams(division_id);
 CREATE INDEX idx_teams_name ON teams(name);
+CREATE INDEX idx_teams_preferred_location ON teams(preferred_location_id);
 
 -- ===== Locations =====
 CREATE TABLE locations (

@@ -15,8 +15,9 @@ if (isset($_GET['err'])) {
     $err = $_GET['err'];
 }
 
-// Get divisions for dropdown
+// Get divisions and locations for dropdowns
 $divisions = TeamManagement::getAllDivisions();
+$locations = TeamManagement::getAllLocations();
 
 // For repopulating form after errors
 $form = [];
@@ -31,6 +32,9 @@ if (isset($_GET['description'])) {
 }
 if (isset($_GET['previous_year_ranking'])) {
     $form['previous_year_ranking'] = $_GET['previous_year_ranking'];
+}
+if (isset($_GET['preferred_location_id'])) {
+    $form['preferred_location_id'] = $_GET['preferred_location_id'];
 }
 
 header_html('Add Team');
@@ -65,6 +69,18 @@ header_html('Add Team');
 
     <label>Previous Year Ranking (optional)
       <input type="number" name="previous_year_ranking" value="<?=h($form['previous_year_ranking'] ?? '')?>" min="1" placeholder="e.g., 1, 2, 3...">
+    </label>
+
+    <label>Preferred Location (optional)
+      <select name="preferred_location_id">
+        <option value="">-- None --</option>
+        <?php foreach ($locations as $location): ?>
+          <option value="<?= (int)$location['id'] ?>" <?= (isset($form['preferred_location_id']) && (int)$form['preferred_location_id'] === (int)$location['id']) ? 'selected' : '' ?>>
+            <?= h($location['name']) ?>
+          </option>
+        <?php endforeach; ?>
+      </select>
+      <small>The location where this team prefers to play (home gym)</small>
     </label>
 
     <div class="actions">

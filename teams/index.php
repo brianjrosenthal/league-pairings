@@ -54,7 +54,7 @@ header_html('Teams');
         <tr>
           <th>Name</th>
           <th>Division</th>
-          <th>Description</th>
+          <th>Preferred Location</th>
           <th></th>
         </tr>
       </thead>
@@ -63,7 +63,7 @@ header_html('Teams');
           <tr>
             <td><?= h($team['name'] ?? '') ?></td>
             <td><?= h($team['division_name'] ?? '') ?></td>
-            <td><?= h($team['description'] ?? '') ?></td>
+            <td><?= !empty($team['preferred_location_name']) ? h($team['preferred_location_name']) : '<span style="color:#999;">—</span>' ?></td>
             <td class="small">
               <a class="button small" href="/teams/previous_games.php?id=<?= (int)$team['id'] ?>">Previous Games</a>
               <a class="button small" href="/teams/availability.php?id=<?= (int)$team['id'] ?>">Availability</a>

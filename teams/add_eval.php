@@ -18,6 +18,9 @@ $description = trim($_POST['description'] ?? '');
 $previousYearRanking = isset($_POST['previous_year_ranking']) && trim($_POST['previous_year_ranking']) !== '' 
     ? (int)$_POST['previous_year_ranking'] 
     : null;
+$preferredLocationId = isset($_POST['preferred_location_id']) && trim($_POST['preferred_location_id']) !== '' 
+    ? (int)$_POST['preferred_location_id'] 
+    : null;
 
 // Validation
 $errors = [];
@@ -38,7 +41,8 @@ if (!empty($errors)) {
         'name' => $name,
         'division_id' => $division_id,
         'description' => $description,
-        'previous_year_ranking' => $previousYearRanking
+        'previous_year_ranking' => $previousYearRanking,
+        'preferred_location_id' => $preferredLocationId
     ];
     $query = http_build_query($params);
     header('Location: /teams/add.php?' . $query);
@@ -47,7 +51,7 @@ if (!empty($errors)) {
 
 try {
     $ctx = UserContext::getLoggedInUserContext();
-    $teamId = TeamManagement::createTeam($ctx, $division_id, $name, $description, $previousYearRanking);
+    $teamId = TeamManagement::createTeam($ctx, $division_id, $name, $description, $previousYearRanking, $preferredLocationId);
     
     // Success - redirect to teams list with success message
     header('Location: /teams/?msg=' . urlencode('Your team has been added.'));
@@ -60,7 +64,8 @@ try {
         'name' => $name,
         'division_id' => $division_id,
         'description' => $description,
-        'previous_year_ranking' => $previousYearRanking
+        'previous_year_ranking' => $previousYearRanking,
+        'preferred_location_id' => $preferredLocationId
     ];
     $query = http_build_query($params);
     header('Location: /teams/add.php?' . $query);

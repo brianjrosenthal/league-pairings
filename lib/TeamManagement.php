@@ -35,7 +35,7 @@ class TeamManagement {
     }
 
     // Create a new team
-    public static function createTeam(UserContext $ctx, int $divisionId, string $name, string $description, ?int $previousYearRanking = null): int {
+    public static function createTeam(UserContext $ctx, int $divisionId, string $name, string $description, ?int $previousYearRanking = null, ?int $preferredLocationId = null): int {
         self::assertLoggedIn($ctx);
         
         $name = self::str($name);
@@ -59,13 +59,18 @@ class TeamManagement {
             throw new InvalidArgumentException('Previous year ranking must be a positive integer.');
         }
 
+        // Validate preferred location if provided
+        if ($preferredLocationId !== null && $preferredLocationId > 0 && !self::locationExists($preferredLocationId)) {
+            throw new InvalidArgumentException('Selected preferred location does not exist.');
+        }
+
         $st = self::pdo()->prepare(
-            "INSERT INTO teams (division_id, name, description, previous_year_ranking) VALUES (?, ?, ?, ?)"
+            "INSERT INTO teams (division_id, name, description, previous_year_ranking, preferred_location_id) VALUES (?, ?, ?, ?, ?)"
         );
-        $st->execute([$divisionId, $name, $description, $previousYearRanking]);
+        $st->execute([$divisionId, $name, $description, $previousYearRanking, $preferredLocationId]);
         $id = (int)self::pdo()->lastInsertId();
         
-        self::log('team.create', $id, ['name' => $name, 'division_id' => $divisionId, 'previous_year_ranking' => $previousYearRanking]);
+        self::log('team.create', $id, ['name' => $name, 'division_id' => $divisionId, 'previous_year_ranking' => $previousYearRanking, 'preferred_location_id' => $preferredLocationId]);
         
         return $id;
     }
@@ -77,6 +82,13 @@ class TeamManagement {
         return (bool)$st->fetchColumn();
     }
 
+    // Check if location exists
+    private static function locationExists(int $locationId): bool {
+        $st = self::pdo()->prepare('SELECT 1 FROM locations WHERE id = ? LIMIT 1');
+        $st->execute([$locationId]);
+        return (bool)$st->fetchColumn();
+    }
+
     // Find team by ID
     public static function findById(int $id): ?array {
         $st = self::pdo()->prepare('SELECT * FROM teams WHERE id=? LIMIT 1');
@@ -85,11 +97,13 @@ class TeamManagement {
         return $row ?: null;
     }
 
-    // List all teams with division names
+    // List all teams with division names and preferred locations
     public static function listTeams(): array {
-        $sql = 'SELECT t.id, t.name, t.description, t.division_id, d.name as division_name, t.created_at 
+        $sql = 'SELECT t.id, t.name, t.description, t.division_id, d.name as division_name, 
+                       t.preferred_location_id, l.name as preferred_location_name, t.created_at 
                 FROM teams t 
                 INNER JOIN divisions d ON t.division_id = d.id 
+                LEFT JOIN locations l ON t.preferred_location_id = l.id
                 ORDER BY d.name, t.name';
 
         $st = self::pdo()->prepare($sql);
@@ -105,8 +119,16 @@ class TeamManagement {
         return $st->fetchAll();
     }
 
+    // Get all locations for dropdown
+    public static function getAllLocations(): array {
+        $sql = 'SELECT id, name FROM locations ORDER BY name';
+        $st = self::pdo()->prepare($sql);
+        $st->execute();
+        return $st->fetchAll();
+    }
+
     // Update team
-    public static function updateTeam(UserContext $ctx, int $id, int $divisionId, string $name, string $description, ?int $previousYearRanking = null): bool {
+    public static function updateTeam(UserContext $ctx, int $id, int $divisionId, string $name, string $description, ?int $previousYearRanking = null, ?int $preferredLocationId = null): bool {
         self::assertLoggedIn($ctx);
         
         $name = self::str($name);
@@ -130,11 +152,16 @@ class TeamManagement {
             throw new InvalidArgumentException('Previous year ranking must be a positive integer.');
         }
 
-        $st = self::pdo()->prepare('UPDATE teams SET division_id = ?, name = ?, description = ?, previous_year_ranking = ? WHERE id = ?');
-        $ok = $st->execute([$divisionId, $name, $description, $previousYearRanking, $id]);
+        // Validate preferred location if provided
+        if ($preferredLocationId !== null && $preferredLocationId > 0 && !self::locationExists($preferredLocationId)) {
+            throw new InvalidArgumentException('Selected preferred location does not exist.');
+        }
+
+        $st = self::pdo()->prepare('UPDATE teams SET division_id = ?, name = ?, description = ?, previous_year_ranking = ?, preferred_location_id = ? WHERE id = ?');
+        $ok = $st->execute([$divisionId, $name, $description, $previousYearRanking, $preferredLocationId, $id]);
         
         if ($ok) {
-            self::log('team.update', $id, ['name' => $name, 'division_id' => $divisionId, 'previous_year_ranking' => $previousYearRanking]);
+            self::log('team.update', $id, ['name' => $name, 'division_id' => $divisionId, 'previous_year_ranking' => $previousYearRanking, 'preferred_location_id' => $preferredLocationId]);
         }
         
         return $ok;
