@@ -150,11 +150,35 @@ header_html('Generate Pairings');
 
 <div class="card" style="margin-bottom: 16px;">
     <h5>Phase 1A: Maximum Coverage (10% of time)</h5>
+    <p class="small" style="margin-bottom: 8px;"><strong>Goal:</strong> Maximize the number of teams that play at least once per week.</p>
+    <p class="small" style="margin-bottom: 8px;"><strong>Algorithm:</strong> Greedy round-robin approach</p>
+    <p class="small" style="margin-bottom: 8px;"><strong>Process:</strong></p>
+    <ol class="small" style="margin-left: 20px;">
+        <li><strong>Round-robin scheduling:</strong> The algorithm processes divisions in rounds, attempting to schedule one game per division in each round</li>
+        <li><strong>Team selection:</strong> Within each division, teams are sorted by strength (using previous year ranking adjusted by current season wins/losses)</li>
+        <li><strong>Matchup selection:</strong> For each unscheduled team, starting with the strongest:
+            <ul style="margin-left: 20px; margin-top: 4px;">
+                <li><strong>First pass:</strong> Try to pair with teams that haven't played each other in the last 3 weeks</li>
+                <li><strong>Second pass:</strong> If no recent-free matchups exist, pair with any available team</li>
+            </ul>
+        </li>
+        <li><strong>Timeslot assignment:</strong> Once a matchup is found:
+            <ul style="margin-left: 20px; margin-top: 4px;">
+                <li>Identify timeslots where both teams are available</li>
+                <li>Filter to timeslots in the current week that haven't been used yet</li>
+                <li><strong>Prefer Sunday timeslots</strong> when available</li>
+                <li>Randomly select from available options</li>
+            </ul>
+        </li>
+        <li><strong>Constraint enforcement:</strong> Each team plays at most once per week in this phase</li>
+        <li><strong>Termination:</strong> Continue rounds until no more games can be scheduled</li>
+    </ol>
+    <p class="small" style="margin-top: 12px;"><strong>Key features:</strong></p>
     <ul class="small" style="margin-left: 20px;">
-        <li>Goal: Get as many teams playing at least once per week</li>
-        <li>Uses a greedy round-robin approach, processing divisions in order</li>
-        <li>Prioritizes stronger teams and avoids recent rematches (within 3 weeks)</li>
-        <li>Each team plays at most once per week in this phase</li>
+        <li>Ensures strongest teams are prioritized for scheduling</li>
+        <li>Avoids recent rematches when possible</li>
+        <li>Respects all team and location availability constraints</li>
+        <li>Provides good initial coverage before optimization phases</li>
     </ul>
 </div>
 
