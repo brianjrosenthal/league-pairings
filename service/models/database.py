@@ -109,7 +109,8 @@ class Database:
                 division_id,
                 name,
                 description,
-                previous_year_ranking
+                previous_year_ranking,
+                preferred_location_id
             FROM teams
             ORDER BY division_id, name
         """)

@@ -351,9 +351,48 @@ class Phase1ACoverage(BasePhase):
         if not available_tsls:
             return None
         
-        # Prefer Sunday TSLs
-        sunday_tsls = [tsl for tsl in available_tsls if self._is_sunday_tsl(tsl)]
-        chosen_tsl = random.choice(sunday_tsls) if sunday_tsls else random.choice(available_tsls)
+        # Get team preferred locations
+        team1 = self.model.team_lookup[team1_id]
+        team2 = self.model.team_lookup[team2_id]
+        team1_pref_loc = team1.get('preferred_location_id')
+        team2_pref_loc = team2.get('preferred_location_id')
+        
+        # Build preferred location set
+        preferred_location_ids = set()
+        if team1_pref_loc:
+            preferred_location_ids.add(team1_pref_loc)
+        if team2_pref_loc:
+            preferred_location_ids.add(team2_pref_loc)
+        
+        # Categorize TSLs by priority
+        preferred_sunday_tsls = []
+        preferred_tsls = []
+        sunday_tsls = []
+        
+        for tsl in available_tsls:
+            is_preferred = tsl['location_id'] in preferred_location_ids
+            is_sunday = self._is_sunday_tsl(tsl)
+            
+            if is_preferred and is_sunday:
+                preferred_sunday_tsls.append(tsl)
+            elif is_preferred:
+                preferred_tsls.append(tsl)
+            elif is_sunday:
+                sunday_tsls.append(tsl)
+        
+        # Choose TSL with cascading priority:
+        # 1. Preferred location + Sunday (best!)
+        # 2. Preferred location (any day)
+        # 3. Sunday (any location)
+        # 4. Any available TSL (fallback)
+        if preferred_sunday_tsls:
+            chosen_tsl = random.choice(preferred_sunday_tsls)
+        elif preferred_tsls:
+            chosen_tsl = random.choice(preferred_tsls)
+        elif sunday_tsls:
+            chosen_tsl = random.choice(sunday_tsls)
+        else:
+            chosen_tsl = random.choice(available_tsls)
         
         # Create game dictionary
         team1 = self.model.team_lookup[team1_id]
