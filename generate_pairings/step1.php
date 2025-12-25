@@ -219,15 +219,18 @@ header_html('Generate Pairings');
             <ul style="margin-left: 20px; margin-top: 4px;">
                 <li>Identify timeslots where both teams are available</li>
                 <li>Filter to timeslots in the current week that haven't been used yet</li>
-                <li><strong>Cascading priority system:</strong>
+                <li><strong>6-tier cascading priority system:</strong>
                     <ol style="margin-left: 20px; margin-top: 4px;">
-                        <li><strong>Preferred location + Sunday</strong> (ideal: team's home gym on Sunday)</li>
-                        <li><strong>Preferred location</strong> (team's home gym on any day)</li>
-                        <li><strong>Sunday</strong> (any available location)</li>
+                        <li><strong>Team Preferred location + Sunday</strong> (ideal: team's home gym on Sunday)</li>
+                        <li><strong>Division Preferred location + Sunday</strong> (division's preferred gym on Sunday)</li>
+                        <li><strong>Sunday</strong> (any available location on Sunday)</li>
+                        <li><strong>Team Preferred location</strong> (team's home gym on any day)</li>
+                        <li><strong>Division Preferred location</strong> (division's preferred gym on any day)</li>
                         <li><strong>Any available timeslot-location</strong> (fallback)</li>
                     </ol>
                 </li>
                 <li>If both teams have different preferred locations, both are considered equally</li>
+                <li>All Sunday scenarios are prioritized before weekday scenarios</li>
             </ul>
         </li>
         <li><strong>Weekly limit enforcement:</strong> Teams can have up to max_games_per_week (allows second game if capacity exists)</li>
