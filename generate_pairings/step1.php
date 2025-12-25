@@ -143,51 +143,49 @@ header_html('Generate Pairings');
     </p>
 </div>
 
+<h4 style="margin-top: 24px; margin-bottom: 8px;">Step 3: Schedule Generation</h4>
+<p class="small" style="margin-bottom: 16px;">
+    The system uses the <strong>TrueMultiPhaseScheduler</strong> algorithm, which runs in four phases:
+</p>
+
 <div class="card" style="margin-bottom: 16px;">
-    <h4>Step 3: Schedule Generation</h4>
-    <p class="small" style="margin-bottom: 12px;">
-        The system uses the <strong>TrueMultiPhaseScheduler</strong> algorithm, which runs in four phases:
-    </p>
-    
-    <div style="margin-bottom: 12px;">
-        <div style="font-weight: 600; margin-bottom: 4px;" class="small">Phase 1A: Maximum Coverage (10% of time)</div>
-        <ul class="small" style="margin-left: 20px;">
-            <li>Goal: Get as many teams playing at least once per week</li>
-            <li>Uses a greedy round-robin approach, processing divisions in order</li>
-            <li>Prioritizes stronger teams and avoids recent rematches (within 3 weeks)</li>
-            <li>Each team plays at most once per week in this phase</li>
-        </ul>
-    </div>
-    
-    <div style="margin-bottom: 12px;">
-        <div style="font-weight: 600; margin-bottom: 4px;" class="small">Phase 1B: Comprehensive Optimal (10% of time)</div>
-        <ul class="small" style="margin-left: 20px;">
-            <li>Goal: Optimize the overall schedule quality using mathematical optimization</li>
-            <li>Uses Google OR-Tools to find the best possible schedule</li>
-            <li>Balances multiple objectives: game quality, fairness, and constraint satisfaction</li>
-            <li>Considers team strength, previous matchups, and availability</li>
-        </ul>
-    </div>
-    
-    <div style="margin-bottom: 12px;">
-        <div style="font-weight: 600; margin-bottom: 4px;" class="small">Phase 1C: Strategic Displacement (10% of time)</div>
-        <ul class="small" style="margin-left: 20px;">
-            <li>Goal: Make room for additional games by strategically moving existing games</li>
-            <li>Identifies games that could be rescheduled to different timeslots</li>
-            <li>Creates capacity for teams that haven't been scheduled yet</li>
-            <li>Maintains all constraints while improving overall coverage</li>
-        </ul>
-    </div>
-    
-    <div style="margin-bottom: 12px;">
-        <div style="font-weight: 600; margin-bottom: 4px;" class="small">Phase 2: Greedy Capacity Filling (70% of time)</div>
-        <ul class="small" style="margin-left: 20px;">
-            <li>Goal: Fill remaining capacity with additional games</li>
-            <li>Allows teams to play up to 2 games per week (respecting the max_games_per_week setting)</li>
-            <li>Uses optimization to maximize the number of quality matchups</li>
-            <li>Focuses on teams that still have available capacity</li>
-        </ul>
-    </div>
+    <h5>Phase 1A: Maximum Coverage (10% of time)</h5>
+    <ul class="small" style="margin-left: 20px;">
+        <li>Goal: Get as many teams playing at least once per week</li>
+        <li>Uses a greedy round-robin approach, processing divisions in order</li>
+        <li>Prioritizes stronger teams and avoids recent rematches (within 3 weeks)</li>
+        <li>Each team plays at most once per week in this phase</li>
+    </ul>
+</div>
+
+<div class="card" style="margin-bottom: 16px;">
+    <h5>Phase 1B: Comprehensive Optimal (10% of time)</h5>
+    <ul class="small" style="margin-left: 20px;">
+        <li>Goal: Optimize the overall schedule quality using mathematical optimization</li>
+        <li>Uses Google OR-Tools to find the best possible schedule</li>
+        <li>Balances multiple objectives: game quality, fairness, and constraint satisfaction</li>
+        <li>Considers team strength, previous matchups, and availability</li>
+    </ul>
+</div>
+
+<div class="card" style="margin-bottom: 16px;">
+    <h5>Phase 1C: Strategic Displacement (10% of time)</h5>
+    <ul class="small" style="margin-left: 20px;">
+        <li>Goal: Make room for additional games by strategically moving existing games</li>
+        <li>Identifies games that could be rescheduled to different timeslots</li>
+        <li>Creates capacity for teams that haven't been scheduled yet</li>
+        <li>Maintains all constraints while improving overall coverage</li>
+    </ul>
+</div>
+
+<div class="card" style="margin-bottom: 16px;">
+    <h5>Phase 2: Greedy Capacity Filling (70% of time)</h5>
+    <ul class="small" style="margin-left: 20px;">
+        <li>Goal: Fill remaining capacity with additional games</li>
+        <li>Allows teams to play up to 2 games per week (respecting the max_games_per_week setting)</li>
+        <li>Uses optimization to maximize the number of quality matchups</li>
+        <li>Focuses on teams that still have available capacity</li>
+    </ul>
 </div>
 
 <div class="card" style="margin-bottom: 16px;">
