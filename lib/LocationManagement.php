@@ -175,4 +175,77 @@ class LocationManagement {
         
         return $ok;
     }
+
+    // === Division Affinity Management ===
+
+    // Get all division affinities for a location
+    public static function getAffinitiesForLocation(int $locationId): array {
+        $sql = '
+            SELECT d.id, d.name
+            FROM location_division_affinities lda
+            JOIN divisions d ON lda.division_id = d.id
+            WHERE lda.location_id = ?
+            ORDER BY d.name
+        ';
+        $st = self::pdo()->prepare($sql);
+        $st->execute([$locationId]);
+        return $st->fetchAll();
+    }
+
+    // Check if an affinity exists
+    public static function hasAffinity(int $locationId, int $divisionId): bool {
+        $st = self::pdo()->prepare('SELECT 1 FROM location_division_affinities WHERE location_id = ? AND division_id = ? LIMIT 1');
+        $st->execute([$locationId, $divisionId]);
+        return (bool)$st->fetchColumn();
+    }
+
+    // Add an affinity
+    public static function addAffinity(UserContext $ctx, int $locationId, int $divisionId): bool {
+        self::assertLoggedIn($ctx);
+        
+        // Check if affinity already exists
+        if (self::hasAffinity($locationId, $divisionId)) {
+            throw new InvalidArgumentException('This division affinity already exists for this location.');
+        }
+
+        $st = self::pdo()->prepare('INSERT INTO location_division_affinities (location_id, division_id) VALUES (?, ?)');
+        $ok = $st->execute([$locationId, $divisionId]);
+        
+        if ($ok) {
+            self::log('location.add_affinity', $locationId, ['division_id' => $divisionId]);
+        }
+        
+        return $ok;
+    }
+
+    // Remove an affinity
+    public static function removeAffinity(UserContext $ctx, int $locationId, int $divisionId): bool {
+        self::assertLoggedIn($ctx);
+        
+        $st = self::pdo()->prepare('DELETE FROM location_division_affinities WHERE location_id = ? AND division_id = ?');
+        $ok = $st->execute([$locationId, $divisionId]);
+        
+        if ($ok) {
+            self::log('location.remove_affinity', $locationId, ['division_id' => $divisionId]);
+        }
+        
+        return $ok;
+    }
+
+    // Get divisions not yet assigned to this location (for dropdown in add form)
+    public static function getAvailableDivisionsForLocation(int $locationId): array {
+        $sql = '
+            SELECT d.id, d.name
+            FROM divisions d
+            WHERE d.id NOT IN (
+                SELECT division_id 
+                FROM location_division_affinities 
+                WHERE location_id = ?
+            )
+            ORDER BY d.name
+        ';
+        $st = self::pdo()->prepare($sql);
+        $st->execute([$locationId]);
+        return $st->fetchAll();
+    }
 }

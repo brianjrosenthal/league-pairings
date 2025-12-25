@@ -71,6 +71,44 @@ header_html('Edit Location');
 </div>
 
 <div class="card">
+  <h3>Division Affinities</h3>
+  <p class="small" style="margin-bottom: 16px;">
+    Manage which divisions have an affinity with this location.
+  </p>
+  
+  <?php
+    $affinities = LocationManagement::getAffinitiesForLocation($id);
+  ?>
+  
+  <?php if (empty($affinities)): ?>
+    <p class="small" style="color:#999;">No division affinities assigned.</p>
+  <?php else: ?>
+    <table class="list" style="margin-bottom: 16px;">
+      <thead>
+        <tr>
+          <th>Division</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($affinities as $affinity): ?>
+          <tr>
+            <td><?= h($affinity['name']) ?></td>
+            <td class="small">
+              <a href="/locations/affinity_remove_eval.php?location_id=<?= (int)$id ?>&division_id=<?= (int)$affinity['id'] ?>" 
+                 onclick="return confirm('Remove this division affinity?');" 
+                 class="button small">Remove</a>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  <?php endif; ?>
+  
+  <a class="button" href="/locations/affinity_add.php?location_id=<?= (int)$id ?>">Add Division Affinity</a>
+</div>
+
+<div class="card">
   <h3>Delete Location</h3>
   <p>Deleting this location is permanent and cannot be undone.</p>
   <form method="post" action="/locations/delete_eval.php" onsubmit="return confirm('Are you sure you want to delete this location? This action cannot be undone.');" class="stack">

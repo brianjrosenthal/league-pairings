@@ -45,8 +45,8 @@ try {
     $ctx = UserContext::getLoggedInUserContext();
     LocationManagement::updateLocation($ctx, $id, $name, $description);
     
-    // Success - redirect to locations list with success message
-    header('Location: /locations/?msg=' . urlencode('Your location has been updated.'));
+    // Success - redirect back to edit page with success message
+    header('Location: /locations/edit.php?id=' . $id . '&msg=' . urlencode('Your location has been updated.'));
     exit;
     
 } catch (Exception $e) {

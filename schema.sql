@@ -165,6 +165,18 @@ CREATE TABLE team_availability (
 CREATE INDEX idx_team_availability_team ON team_availability(team_id);
 CREATE INDEX idx_team_availability_timeslot ON team_availability(timeslot_id);
 
+-- ===== Location Division Affinities =====
+CREATE TABLE location_division_affinities (
+  location_id INT NOT NULL,
+  division_id INT NOT NULL,
+  PRIMARY KEY (location_id, division_id),
+  CONSTRAINT fk_location_division_affinities_location FOREIGN KEY (location_id) REFERENCES locations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_location_division_affinities_division FOREIGN KEY (division_id) REFERENCES divisions(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE INDEX idx_location_division_affinities_location ON location_division_affinities(location_id);
+CREATE INDEX idx_location_division_affinities_division ON location_division_affinities(division_id);
+
 -- ===== Previous Games =====
 CREATE TABLE previous_games (
   id INT AUTO_INCREMENT PRIMARY KEY,
