@@ -31,6 +31,11 @@ class DataModel:
         self.location_lookup = {l["location_id"]: l for l in self.locations}
         self.timeslot_lookup = {ts["timeslot_id"]: ts for ts in self.timeslots}
         
+        # Build division preferred locations lookup
+        self.division_preferred_locations = self._build_division_preferred_locations(
+            raw_data["location_division_affinities"]
+        )
+        
         # Build TSL (Timeslot-Location combinations)
         self.tsls = self._build_tsls(
             raw_data["location_availability"]
@@ -80,6 +85,26 @@ class DataModel:
                 tsl_id += 1
         
         return tsls
+    
+    def _build_division_preferred_locations(
+        self,
+        affinities: List[Dict]
+    ) -> Dict[int, Set[int]]:
+        """
+        Build division preferred locations lookup.
+        
+        Args:
+            affinities: List of location-division affinity records
+            
+        Returns:
+            Dictionary mapping division_id -> set of preferred location_ids
+        """
+        preferred = defaultdict(set)
+        
+        for aff in affinities:
+            preferred[aff['division_id']].add(aff['location_id'])
+        
+        return preferred
     
     def _build_team_availability(
         self, 

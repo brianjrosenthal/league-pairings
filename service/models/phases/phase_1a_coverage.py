@@ -351,46 +351,60 @@ class Phase1ACoverage(BasePhase):
         if not available_tsls:
             return None
         
-        # Get team preferred locations
+        # Get team and division preferred locations
         team1 = self.model.team_lookup[team1_id]
         team2 = self.model.team_lookup[team2_id]
-        team1_pref_loc = team1.get('preferred_location_id')
-        team2_pref_loc = team2.get('preferred_location_id')
+        division_id = team1['division_id']  # Both teams in same division
         
-        # Build preferred location set
-        preferred_location_ids = set()
-        if team1_pref_loc:
-            preferred_location_ids.add(team1_pref_loc)
-        if team2_pref_loc:
-            preferred_location_ids.add(team2_pref_loc)
+        team_pref_locs = set()
+        if team1.get('preferred_location_id'):
+            team_pref_locs.add(team1['preferred_location_id'])
+        if team2.get('preferred_location_id'):
+            team_pref_locs.add(team2['preferred_location_id'])
         
-        # Categorize TSLs by priority
-        preferred_sunday_tsls = []
-        preferred_tsls = []
-        sunday_tsls = []
+        div_pref_locs = self.model.division_preferred_locations.get(division_id, set())
+        
+        # Categorize TSLs with 6-tier priority
+        team_pref_sunday = []
+        div_pref_sunday = []
+        sunday_any = []
+        team_pref_any = []
+        div_pref_any = []
         
         for tsl in available_tsls:
-            is_preferred = tsl['location_id'] in preferred_location_ids
+            loc_id = tsl['location_id']
             is_sunday = self._is_sunday_tsl(tsl)
+            is_team_pref = loc_id in team_pref_locs
+            is_div_pref = loc_id in div_pref_locs
             
-            if is_preferred and is_sunday:
-                preferred_sunday_tsls.append(tsl)
-            elif is_preferred:
-                preferred_tsls.append(tsl)
+            if is_team_pref and is_sunday:
+                team_pref_sunday.append(tsl)
+            elif is_div_pref and is_sunday:
+                div_pref_sunday.append(tsl)
             elif is_sunday:
-                sunday_tsls.append(tsl)
+                sunday_any.append(tsl)
+            elif is_team_pref:
+                team_pref_any.append(tsl)
+            elif is_div_pref:
+                div_pref_any.append(tsl)
         
         # Choose TSL with cascading priority:
-        # 1. Preferred location + Sunday (best!)
-        # 2. Preferred location (any day)
+        # 1. Team Preferred location + Sunday (ideal!)
+        # 2. Division Preferred location + Sunday
         # 3. Sunday (any location)
-        # 4. Any available TSL (fallback)
-        if preferred_sunday_tsls:
-            chosen_tsl = random.choice(preferred_sunday_tsls)
-        elif preferred_tsls:
-            chosen_tsl = random.choice(preferred_tsls)
-        elif sunday_tsls:
-            chosen_tsl = random.choice(sunday_tsls)
+        # 4. Team Preferred location (any day)
+        # 5. Division Preferred location (any day)
+        # 6. Any available TSL (fallback)
+        if team_pref_sunday:
+            chosen_tsl = random.choice(team_pref_sunday)
+        elif div_pref_sunday:
+            chosen_tsl = random.choice(div_pref_sunday)
+        elif sunday_any:
+            chosen_tsl = random.choice(sunday_any)
+        elif team_pref_any:
+            chosen_tsl = random.choice(team_pref_any)
+        elif div_pref_any:
+            chosen_tsl = random.choice(div_pref_any)
         else:
             chosen_tsl = random.choice(available_tsls)
         

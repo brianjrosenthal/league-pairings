@@ -84,6 +84,9 @@ class Database:
             # Fetch previous games (all historical data)
             previous_games = self._fetch_previous_games(cursor)
             
+            # Fetch location-division affinities
+            location_division_affinities = self._fetch_location_division_affinities(cursor)
+            
             conn.close()
             
             return {
@@ -93,7 +96,8 @@ class Database:
                 "locations": locations,
                 "location_availability": location_availability,
                 "team_availability": team_availability,
-                "previous_games": previous_games
+                "previous_games": previous_games,
+                "location_division_affinities": location_division_affinities
             }
             
         except mysql.connector.Error as e:
@@ -205,5 +209,16 @@ class Database:
                 team_2_score
             FROM previous_games
             ORDER BY date DESC
+        """)
+        return cursor.fetchall()
+    
+    def _fetch_location_division_affinities(self, cursor) -> List[Dict]:
+        """Fetch location-division affinity mappings."""
+        cursor.execute("""
+            SELECT 
+                location_id,
+                division_id
+            FROM location_division_affinities
+            ORDER BY division_id, location_id
         """)
         return cursor.fetchall()
