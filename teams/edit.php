@@ -68,7 +68,11 @@ if (isset($_GET['preferred_location_id'])) {
 header_html('Edit Team');
 ?>
 
-<h2>Edit Team</h2>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+  <h2>Edit Team</h2>
+  <a class="button" href="/teams/">Teams</a>
+</div>
+
 <?php if ($msg): ?><p class="flash"><?=h($msg)?></p><?php endif; ?>
 <?php if ($err): ?><p class="error"><?=h($err)?></p><?php endif; ?>
 
