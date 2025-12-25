@@ -138,11 +138,10 @@ class Phase2Greedy(BasePhase):
         week_num: int
     ) -> Generator[Dict, None, None]:
         """
-        Generator that yields games for a division, maintaining position between calls.
+        Generator with fair team selection and strength-based matching.
         
-        Uses two-pass approach:
-        1. First pass: Avoid teams that played recently
-        2. Second pass: Allow any pairing
+        Prioritizes teams with fewer games, matches by similar strength.
+        Uses attempt tracking to avoid infinite loops.
         
         Args:
             division_id: Division ID
@@ -157,72 +156,158 @@ class Phase2Greedy(BasePhase):
         if not teams_in_division:
             return
         
-        # Get available teams sorted by strength (for fair pairing)
-        available_teams = self._get_available_teams_sorted(teams_in_division, schedule, week_num)
+        attempted_teams = set()  # Track teams we've tried without success
         
-        # Pass 1: Avoid recent play (soft constraint)
-        for i, team1 in enumerate(available_teams):
-            # Re-check availability each iteration (schedule changes between yields)
-            if not self._is_team_available(team1['team_id'], schedule, week_num):
+        while True:
+            # Select next team fairly (excluding already-attempted)
+            focal_team = self._select_next_team_fairly(
+                teams_in_division,
+                schedule,
+                week_num,
+                exclude_team_ids=attempted_teams
+            )
+            
+            if not focal_team:
+                # No more teams available - generator exhausted
+                break
+            
+            # Find opponents sorted by similar strength
+            opponents = self._find_similar_strength_opponents(
+                focal_team,
+                teams_in_division,
+                schedule,
+                week_num
+            )
+            
+            if not opponents:
+                attempted_teams.add(focal_team['team_id'])
                 continue
             
-            for team2 in available_teams[i+1:]:
-                if not self._is_team_available(team2['team_id'], schedule, week_num):
-                    continue
+            # Try to schedule game (two passes: avoid recent, then allow)
+            game_scheduled = False
+            
+            # Pass 1: Avoid recent play (soft constraint)
+            for opponent in opponents:
+                team1_id = focal_team['team_id']
+                team2_id = opponent['team_id']
                 
-                team1_id = team1['team_id']
-                team2_id = team2['team_id']
-                
-                # Soft constraint: avoid recent play
                 if not self._teams_played_recently(team1_id, team2_id, schedule, week_num, weeks_back=3):
                     game = self._try_to_find_game(team1_id, team2_id, schedule, week_num)
                     if game:
                         yield game
-        
-        # Pass 2: Allow recent play (ignore soft constraint)
-        for i, team1 in enumerate(available_teams):
-            if not self._is_team_available(team1['team_id'], schedule, week_num):
-                continue
+                        game_scheduled = True
+                        break
             
-            for team2 in available_teams[i+1:]:
-                if not self._is_team_available(team2['team_id'], schedule, week_num):
-                    continue
-                
-                team1_id = team1['team_id']
-                team2_id = team2['team_id']
-                
-                game = self._try_to_find_game(team1_id, team2_id, schedule, week_num)
-                if game:
-                    yield game
+            # Pass 2: Allow recent play if necessary
+            if not game_scheduled:
+                for opponent in opponents:
+                    team1_id = focal_team['team_id']
+                    team2_id = opponent['team_id']
+                    
+                    game = self._try_to_find_game(team1_id, team2_id, schedule, week_num)
+                    if game:
+                        yield game
+                        game_scheduled = True
+                        break
+            
+            # If we couldn't schedule this team, exclude it
+            if not game_scheduled:
+                attempted_teams.add(focal_team['team_id'])
     
-    def _get_available_teams_sorted(
+    def _select_next_team_fairly(
         self,
         teams: List[Dict],
         schedule: Schedule,
-        week_num: int
-    ) -> List[Dict]:
+        week_num: int,
+        exclude_team_ids: set = None
+    ) -> Optional[Dict]:
         """
-        Get teams with < max_games_per_week, sorted by strength.
+        Select next team fairly, prioritizing teams with fewer games.
+        
+        1. Groups teams by current game count
+        2. Selects from group with minimum games
+        3. Randomly chooses within that group
+        4. Excludes already-attempted teams
         
         Args:
             teams: List of team dictionaries
             schedule: Current schedule
             week_num: Current week number
+            exclude_team_ids: Set of team IDs to exclude
             
         Returns:
-            Sorted list of available teams
+            Selected team or None if no teams available
         """
-        # Filter to teams under weekly limit
-        available = []
+        from collections import defaultdict
+        
+        exclude_team_ids = exclude_team_ids or set()
+        
+        # Calculate game counts for available teams
+        team_game_counts = []
         for team in teams:
-            if self._is_team_available(team['team_id'], schedule, week_num):
-                available.append(team)
+            if team['team_id'] in exclude_team_ids:
+                continue
+            
+            game_count = len(schedule.get_team_games_in_week(team['team_id'], week_num))
+            if game_count < self.max_games_per_week:
+                team_game_counts.append((team, game_count))
         
-        # Sort by strength (strongest first, for balanced pairing)
-        scored_teams = [(team, self._calculate_team_strength_score(team)) for team in available]
-        scored_teams.sort(key=lambda x: x[1])  # Sort by score ascending (lower = stronger)
+        if not team_game_counts:
+            return None
         
-        return [team for team, score in scored_teams]
+        # Group by game count
+        by_count = defaultdict(list)
+        for team, count in team_game_counts:
+            by_count[count].append(team)
+        
+        # Get teams with minimum game count
+        min_count = min(by_count.keys())
+        candidates = by_count[min_count]
+        
+        # Randomly select from candidates
+        return random.choice(candidates)
+    
+    def _find_similar_strength_opponents(
+        self,
+        focal_team: Dict,
+        teams: List[Dict],
+        schedule: Schedule,
+        week_num: int
+    ) -> List[Dict]:
+        """
+        Find opponents sorted by strength similarity to focal team.
+        
+        Returns opponents sorted by closeness in strength (most similar first).
+        
+        Args:
+            focal_team: Team to find opponents for
+            teams: List of all teams in division
+            schedule: Current schedule
+            week_num: Current week number
+            
+        Returns:
+            List of opponent teams sorted by strength similarity
+        """
+        focal_strength = self._calculate_team_strength_score(focal_team)
+        
+        opponent_scores = []
+        for team in teams:
+            # Skip focal team itself
+            if team['team_id'] == focal_team['team_id']:
+                continue
+            
+            # Skip teams that have hit weekly limit
+            if not self._is_team_available(team['team_id'], schedule, week_num):
+                continue
+            
+            team_strength = self._calculate_team_strength_score(team)
+            distance = abs(team_strength - focal_strength)
+            opponent_scores.append((team, distance))
+        
+        # Sort by distance (ascending = most similar first)
+        opponent_scores.sort(key=lambda x: x[1])
+        
+        return [team for team, distance in opponent_scores]
     
     def _is_team_available(
         self,
@@ -365,11 +450,62 @@ class Phase2Greedy(BasePhase):
         if not available_tsls:
             return None
         
-        sunday_tsls = [tsl for tsl in available_tsls if self._is_sunday_tsl(tsl)]
-        chosen_tsl = random.choice(sunday_tsls) if sunday_tsls else random.choice(available_tsls)
-        
+        # Get team and division preferred locations
         team1 = self.model.team_lookup[team1_id]
         team2 = self.model.team_lookup[team2_id]
+        division_id = team1['division_id']  # Both teams in same division
+        
+        team_pref_locs = set()
+        if team1.get('preferred_location_id'):
+            team_pref_locs.add(team1['preferred_location_id'])
+        if team2.get('preferred_location_id'):
+            team_pref_locs.add(team2['preferred_location_id'])
+        
+        div_pref_locs = self.model.division_preferred_locations.get(division_id, set())
+        
+        # Categorize TSLs with 6-tier priority
+        team_pref_sunday = []
+        div_pref_sunday = []
+        sunday_any = []
+        team_pref_any = []
+        div_pref_any = []
+        
+        for tsl in available_tsls:
+            loc_id = tsl['location_id']
+            is_sunday = self._is_sunday_tsl(tsl)
+            is_team_pref = loc_id in team_pref_locs
+            is_div_pref = loc_id in div_pref_locs
+            
+            if is_team_pref and is_sunday:
+                team_pref_sunday.append(tsl)
+            elif is_div_pref and is_sunday:
+                div_pref_sunday.append(tsl)
+            elif is_sunday:
+                sunday_any.append(tsl)
+            elif is_team_pref:
+                team_pref_any.append(tsl)
+            elif is_div_pref:
+                div_pref_any.append(tsl)
+        
+        # Choose TSL with cascading priority:
+        # 1. Team Preferred location + Sunday (ideal!)
+        # 2. Division Preferred location + Sunday
+        # 3. Sunday (any location)
+        # 4. Team Preferred location (any day)
+        # 5. Division Preferred location (any day)
+        # 6. Any available TSL (fallback)
+        if team_pref_sunday:
+            chosen_tsl = random.choice(team_pref_sunday)
+        elif div_pref_sunday:
+            chosen_tsl = random.choice(div_pref_sunday)
+        elif sunday_any:
+            chosen_tsl = random.choice(sunday_any)
+        elif team_pref_any:
+            chosen_tsl = random.choice(team_pref_any)
+        elif div_pref_any:
+            chosen_tsl = random.choice(div_pref_any)
+        else:
+            chosen_tsl = random.choice(available_tsls)
         
         return {
             'teamA': team1_id,

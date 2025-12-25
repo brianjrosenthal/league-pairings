@@ -285,42 +285,61 @@ header_html('Generate Pairings');
 
 <div class="card" style="margin-bottom: 16px;">
     <h5>Phase 2: Greedy Capacity Filling (70% of time)</h5>
-    <p style="margin-bottom: 8px;"><strong>Goal:</strong> Maximize timeslot-location utilization while respecting weekly and daily limits.</p>
-    <p style="margin-bottom: 8px;"><strong>Algorithm:</strong> Round-robin with generator-based fair distribution</p>
+    <p style="margin-bottom: 8px;"><strong>Goal:</strong> Maximize timeslot-location utilization while ensuring fair distribution across all teams.</p>
+    <p style="margin-bottom: 8px;"><strong>Algorithm:</strong> Round-robin with fair team selection and strength-based matching</p>
     <p style="margin-bottom: 8px;"><strong>Process:</strong></p>
     <ol class="small" style="margin-left: 20px;">
         <li><strong>Round-robin scheduling:</strong> Process divisions in rounds, attempting to schedule one game per division in each round</li>
-        <li><strong>Maintain position with generators:</strong> Use Python generators to remember where each division left off between rounds, ensuring fair distribution</li>
-        <li><strong>For each division, find next available matchup:</strong>
+        <li><strong>Fair team selection (within each division):</strong>
             <ul style="margin-left: 20px; margin-top: 4px;">
-                <li>Get all teams with fewer than max_games_per_week</li>
-                <li>Sort by team strength (for balanced pairing)</li>
-                <li><strong>Two-pass selection:</strong>
-                    <ul style="margin-left: 20px; margin-top: 4px;">
-                        <li><strong>Pass 1:</strong> Try to pair teams that haven't played in last 3 weeks</li>
-                        <li><strong>Pass 2:</strong> Allow any pairing if no recent-free matchups exist</li>
-                    </ul>
-                </li>
+                <li>Group teams by current game count this week</li>
+                <li>Select from group with fewest games (prioritizes underserved teams)</li>
+                <li>Randomly choose within that group</li>
+                <li>Track teams that couldn't be scheduled to avoid infinite loops</li>
             </ul>
         </li>
-        <li><strong>Timeslot assignment:</strong> Use same preference logic as other phases (prefer Sundays, respect availability)</li>
-        <li><strong>Continue rounds</strong> until multiple consecutive rounds produce no new games (exhaust all possibilities)</li>
+        <li><strong>Strength-based opponent matching:</strong>
+            <ul style="margin-left: 20px; margin-top: 4px;">
+                <li>Calculate strength distance between focal team and all available opponents</li>
+                <li>Sort opponents by similarity (closest strength first)</li>
+                <li>Creates more competitive, balanced matchups</li>
+            </ul>
+        </li>
+        <li><strong>Two-pass matchup selection:</strong>
+            <ul style="margin-left: 20px; margin-top: 4px;">
+                <li><strong>Pass 1:</strong> Try to pair with teams not played in last 3 weeks</li>
+                <li><strong>Pass 2:</strong> Allow any pairing if no recent-free matchups exist</li>
+            </ul>
+        </li>
+        <li><strong>Timeslot assignment:</strong> Use same 6-tier location priority as Phase 1:
+            <ul style="margin-left: 20px; margin-top: 4px;">
+                <li><strong>Tier 1:</strong> Team Preferred + Sunday</li>
+                <li><strong>Tier 2:</strong> Division Preferred + Sunday</li>
+                <li><strong>Tier 3:</strong> Sunday (any location)</li>
+                <li><strong>Tier 4:</strong> Team Preferred (any day)</li>
+                <li><strong>Tier 5:</strong> Division Preferred (any day)</li>
+                <li><strong>Tier 6:</strong> Any available TSL</li>
+            </ul>
+        </li>
+        <li><strong>Continue rounds</strong> until multiple consecutive rounds produce no new games</li>
         <li><strong>Exhaustive final check:</strong> After round-robin completes:
             <ul style="margin-left: 20px; margin-top: 4px;">
                 <li>Systematically check every team pair in every division</li>
                 <li>For each pair, check every available timeslot-location</li>
-                <li>Schedule any games that were missed by the greedy algorithm</li>
-                <li>This catches edge cases and ensures maximum utilization</li>
+                <li>Ignores soft constraints (recent play, strength matching, team/division preference)</li>
+                <li>Enforces only hard constraints (availability, game limits)</li>
+                <li>Catches any remaining opportunities for maximum utilization</li>
             </ul>
         </li>
     </ol>
     <p class="small" style="margin-top: 12px;"><strong>Key features:</strong></p>
     <ul class="small" style="margin-left: 20px;">
         <li>Allocates majority of time budget (70%) for maximum game coverage</li>
-        <li>Generator-based approach ensures fair distribution across divisions</li>
-        <li>Balances strong and weak teams for competitive games</li>
-        <li>Exhaustive final check catches opportunities the greedy algorithm might miss</li>
-        <li>Respects all constraints: daily limits (max 1 game/day per team), weekly limits (max 2 games/week per team)</li>
+        <li><strong>Fair distribution:</strong> Teams with fewer games get priority, preventing weaker teams from being underserved</li>
+        <li><strong>Balanced matchups:</strong> Strength-based pairing creates more competitive games</li>
+        <li>Generator-based approach maintains position across rounds for efficiency</li>
+        <li>Exhaustive final check ensures no opportunities are missed</li>
+        <li>Respects all hard constraints: daily limits (max 1 game/day per team), weekly limits (max 2 games/week per team)</li>
     </ul>
 </div>
 
