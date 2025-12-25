@@ -11,7 +11,8 @@ $me = current_user();
 // Get parameters
 $startDate = $_GET['start_date'] ?? '';
 $endDate = $_GET['end_date'] ?? '';
-$algorithm = $_GET['algorithm'] ?? 'greedy';
+// Algorithm is hard-coded to use TrueMultiPhaseScheduler (ortools)
+$algorithm = 'ortools';
 $timeout = (int)($_GET['timeout'] ?? 120);
 
 // Validate dates
@@ -86,7 +87,7 @@ header_html('Generate Pairings - Review');
 <div class="card" style="margin-bottom: 24px;">
     <h3>Generate Schedule</h3>
     <p class="small" style="margin-bottom: 16px;">
-        Algorithm: <strong><?= h(ucfirst($algorithm)) ?></strong>
+        Algorithm: <strong>TrueMultiPhaseScheduler</strong>
     </p>
     
     <form method="GET" action="/generate_pairings/generate_async.php" style="margin-bottom: 16px;">

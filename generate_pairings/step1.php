@@ -12,7 +12,8 @@ $stats = SchedulingManagement::getSystemStats();
 // Get parameters from URL or use defaults
 $startDate = $_GET['start_date'] ?? '';
 $endDate = $_GET['end_date'] ?? '';
-$algorithm = $_GET['algorithm'] ?? 'ortools';
+// Algorithm is now hard-coded to use TrueMultiPhaseScheduler (ortools)
+$algorithm = 'ortools';
 $timeout = (int)($_GET['timeout'] ?? 120);
 
 // If no dates provided, calculate defaults: skip 6 days, then next Sunday to following Thursday
@@ -96,14 +97,10 @@ header_html('Generate Pairings');
             <input type="date" name="end_date" value="<?= h($endDate) ?>" required>
         </label>
         
-        <label>
-            <span>Algorithm</span>
-            <select name="algorithm">
-                <option value="greedy" <?= $algorithm === 'greedy' ? 'selected' : '' ?>>Greedy (Legacy, Single Game Per Team)</option>
-                <option value="ortools" <?= $algorithm === 'ortools' ? 'selected' : '' ?>>Multi-Phase OR-Tools (1-3 Games/Week, Recommended)</option>
-                <option value="ilp" <?= $algorithm === 'ilp' ? 'selected' : '' ?>>PuLP ILP (Legacy, Single Game Per Team)</option>
-            </select>
-        </label>
+        <div style="padding: 12px 0; border-bottom: 1px solid #e0e0e0; margin-bottom: 16px;">
+            <div class="small" style="color: #666; margin-bottom: 4px;">Algorithm</div>
+            <div style="font-weight: 600;">TrueMultiPhaseScheduler</div>
+        </div>
         
         <label>
             <span>Optimization Timeout (seconds)</span>
