@@ -184,31 +184,118 @@ header_html('Generate Pairings');
 
 <div class="card" style="margin-bottom: 16px;">
     <h5>Phase 1B: Comprehensive Optimal (10% of time)</h5>
+    <p class="small" style="margin-bottom: 8px;"><strong>Goal:</strong> Schedule as many unscheduled teams as possible (teams that didn't get scheduled in Phase 1A).</p>
+    <p class="small" style="margin-bottom: 8px;"><strong>Algorithm:</strong> Fill-in scheduling using greedy approach</p>
+    <p class="small" style="margin-bottom: 8px;"><strong>Process:</strong></p>
+    <ol class="small" style="margin-left: 20px;">
+        <li><strong>Identify unscheduled teams:</strong> For each division, find teams that have no games scheduled this week</li>
+        <li><strong>Process each unscheduled team:</strong> For each team without a game:
+            <ul style="margin-left: 20px; margin-top: 4px;">
+                <li><strong>Find available partners:</strong> Look for any team in the division that has fewer than max games per week</li>
+                <li><strong>Two-pass matchup selection:</strong>
+                    <ul style="margin-left: 20px; margin-top: 4px;">
+                        <li><strong>First pass:</strong> Try to pair with teams that haven't played each other in the last 3 weeks</li>
+                        <li><strong>Second pass:</strong> If no recent-free matchups exist, pair with any available team</li>
+                    </ul>
+                </li>
+            </ul>
+        </li>
+        <li><strong>Timeslot assignment:</strong> Once a matchup is found:
+            <ul style="margin-left: 20px; margin-top: 4px;">
+                <li>Identify timeslots where both teams are available</li>
+                <li>Filter to timeslots in the current week that haven't been used yet</li>
+                <li><strong>Prefer Sunday timeslots</strong> when available</li>
+                <li>Randomly select from available options</li>
+            </ul>
+        </li>
+        <li><strong>Weekly limit enforcement:</strong> Teams can have up to max_games_per_week (allows second game if capacity exists)</li>
+    </ol>
+    <p class="small" style="margin-top: 12px;"><strong>Key features:</strong></p>
     <ul class="small" style="margin-left: 20px;">
-        <li>Goal: Optimize the overall schedule quality using mathematical optimization</li>
-        <li>Uses Google OR-Tools to find the best possible schedule</li>
-        <li>Balances multiple objectives: game quality, fairness, and constraint satisfaction</li>
-        <li>Considers team strength, previous matchups, and availability</li>
+        <li>Targets teams that were completely left out in Phase 1A</li>
+        <li>More flexible than 1A (allows pairing with already-scheduled teams)</li>
+        <li>Maintains preference for avoiding recent rematches</li>
+        <li>Respects all availability and capacity constraints</li>
     </ul>
 </div>
 
 <div class="card" style="margin-bottom: 16px;">
     <h5>Phase 1C: Strategic Displacement (10% of time)</h5>
+    <p class="small" style="margin-bottom: 8px;"><strong>Goal:</strong> Schedule remaining unscheduled teams by substituting them into existing games.</p>
+    <p class="small" style="margin-bottom: 8px;"><strong>Algorithm:</strong> Team substitution with guaranteed rescheduling</p>
+    <p class="small" style="margin-bottom: 8px;"><strong>Process:</strong></p>
+    <ol class="small" style="margin-left: 20px;">
+        <li><strong>Identify unscheduled teams:</strong> For each division, find teams still without games this week</li>
+        <li><strong>Find substitution opportunities:</strong> For each unscheduled team:
+            <ul style="margin-left: 20px; margin-top: 4px;">
+                <li><strong>Examine existing games</strong> in the same division</li>
+                <li>For each game, consider substituting the unscheduled team for either team in the game</li>
+            </ul>
+        </li>
+        <li><strong>Validate substitution:</strong> Before swapping, verify:
+            <ul style="margin-left: 20px; margin-top: 4px;">
+                <li>The unscheduled team is available for the game's timeslot</li>
+                <li>The team being displaced can be <strong>immediately rescheduled</strong> with a different partner</li>
+                <li>The displaced team's new partner hasn't played them recently (prefer fresh matchups)</li>
+            </ul>
+        </li>
+        <li><strong>Execute swap atomically:</strong>
+            <ul style="margin-left: 20px; margin-top: 4px;">
+                <li>Remove the original game</li>
+                <li>Add the modified game (with substituted team)</li>
+                <li>Add the new game (for displaced team)</li>
+                <li>If any step fails, roll back all changes</li>
+            </ul>
+        </li>
+        <li><strong>Avoid cascading disruption:</strong> Only perform swaps that maintain or improve schedule quality</li>
+    </ol>
+    <p class="small" style="margin-top: 12px;"><strong>Key features:</strong></p>
     <ul class="small" style="margin-left: 20px;">
-        <li>Goal: Make room for additional games by strategically moving existing games</li>
-        <li>Identifies games that could be rescheduled to different timeslots</li>
-        <li>Creates capacity for teams that haven't been scheduled yet</li>
-        <li>Maintains all constraints while improving overall coverage</li>
+        <li>Creates scheduling opportunities through strategic reshuffling</li>
+        <li>Guarantees displaced teams are immediately rescheduled (no team left worse off)</li>
+        <li>Maintains all constraints while improving coverage</li>
+        <li>Uses atomic transactions to ensure schedule integrity</li>
     </ul>
 </div>
 
 <div class="card" style="margin-bottom: 16px;">
     <h5>Phase 2: Greedy Capacity Filling (70% of time)</h5>
+    <p class="small" style="margin-bottom: 8px;"><strong>Goal:</strong> Maximize timeslot-location utilization while respecting weekly and daily limits.</p>
+    <p class="small" style="margin-bottom: 8px;"><strong>Algorithm:</strong> Round-robin with generator-based fair distribution</p>
+    <p class="small" style="margin-bottom: 8px;"><strong>Process:</strong></p>
+    <ol class="small" style="margin-left: 20px;">
+        <li><strong>Round-robin scheduling:</strong> Process divisions in rounds, attempting to schedule one game per division in each round</li>
+        <li><strong>Maintain position with generators:</strong> Use Python generators to remember where each division left off between rounds, ensuring fair distribution</li>
+        <li><strong>For each division, find next available matchup:</strong>
+            <ul style="margin-left: 20px; margin-top: 4px;">
+                <li>Get all teams with fewer than max_games_per_week</li>
+                <li>Sort by team strength (for balanced pairing)</li>
+                <li><strong>Two-pass selection:</strong>
+                    <ul style="margin-left: 20px; margin-top: 4px;">
+                        <li><strong>Pass 1:</strong> Try to pair teams that haven't played in last 3 weeks</li>
+                        <li><strong>Pass 2:</strong> Allow any pairing if no recent-free matchups exist</li>
+                    </ul>
+                </li>
+            </ul>
+        </li>
+        <li><strong>Timeslot assignment:</strong> Use same preference logic as other phases (prefer Sundays, respect availability)</li>
+        <li><strong>Continue rounds</strong> until multiple consecutive rounds produce no new games (exhaust all possibilities)</li>
+        <li><strong>Exhaustive final check:</strong> After round-robin completes:
+            <ul style="margin-left: 20px; margin-top: 4px;">
+                <li>Systematically check every team pair in every division</li>
+                <li>For each pair, check every available timeslot-location</li>
+                <li>Schedule any games that were missed by the greedy algorithm</li>
+                <li>This catches edge cases and ensures maximum utilization</li>
+            </ul>
+        </li>
+    </ol>
+    <p class="small" style="margin-top: 12px;"><strong>Key features:</strong></p>
     <ul class="small" style="margin-left: 20px;">
-        <li>Goal: Fill remaining capacity with additional games</li>
-        <li>Allows teams to play up to 2 games per week (respecting the max_games_per_week setting)</li>
-        <li>Uses optimization to maximize the number of quality matchups</li>
-        <li>Focuses on teams that still have available capacity</li>
+        <li>Allocates majority of time budget (70%) for maximum game coverage</li>
+        <li>Generator-based approach ensures fair distribution across divisions</li>
+        <li>Balances strong and weak teams for competitive games</li>
+        <li>Exhaustive final check catches opportunities the greedy algorithm might miss</li>
+        <li>Respects all constraints: daily limits (max 1 game/day per team), weekly limits (max 2 games/week per team)</li>
     </ul>
 </div>
 
