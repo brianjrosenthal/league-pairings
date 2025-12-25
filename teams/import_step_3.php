@@ -22,9 +22,16 @@ $previewData = [];
 $hasErrors = false;
 
 try {
-    // Get existing teams and divisions
+    // Get existing teams, divisions, and locations
     $existingTeams = TeamManagement::getAllTeamNames(); // Returns array [name => division_name]
     $existingDivisions = TeamManagement::getAllDivisionNames(); // Returns array of division names
+    $existingLocations = TeamManagement::getAllLocations(); // Returns array of location objects
+    
+    // Create a map of location names (lowercase) to location IDs for validation
+    $locationsMap = [];
+    foreach ($existingLocations as $location) {
+        $locationsMap[strtolower($location['name'])] = (int)$location['id'];
+    }
     
     // Read CSV file
     $csvData = CsvImportHelper::parseCSV($filePath, $delimiter);
@@ -35,6 +42,7 @@ try {
         
         $name = trim($row[$mapping['name']] ?? '');
         $divisionName = trim($row[$mapping['division']] ?? '');
+        $preferredLocationName = !empty($mapping['preferred_location']) ? trim($row[$mapping['preferred_location']] ?? '') : '';
         
         // Skip empty rows
         if ($name === '' && $divisionName === '') {
@@ -45,10 +53,20 @@ try {
             'line_number' => $lineNumber,
             'name' => $name,
             'division' => $divisionName,
+            'preferred_location' => $preferredLocationName,
+            'preferred_location_valid' => true,
             'is_duplicate' => false,
             'has_error' => false,
             'error_message' => null
         ];
+        
+        // Validate preferred location if provided
+        if ($preferredLocationName !== '' && !isset($locationsMap[strtolower($preferredLocationName)])) {
+            $item['has_error'] = true;
+            $item['preferred_location_valid'] = false;
+            $item['error_message'] = "Preferred location '{$preferredLocationName}' does not exist";
+            $hasErrors = true;
+        }
         
         // Validate required fields
         if ($name === '') {
@@ -71,8 +89,12 @@ try {
                     $existingDivision = $existingTeams[$name];
                     
                     if ($existingDivision === $divisionName) {
-                        // Same team, same division - mark as duplicate (will be ignored)
+                        // Same team, same division - mark as duplicate for updating
                         $item['is_duplicate'] = true;
+                        // But if there's a preferred location, we can update it
+                        if (!empty($item['preferred_location']) && $item['preferred_location_valid']) {
+                            $item['will_update'] = true;
+                        }
                     } else {
                         // Same team name but different division - this is an error
                         $item['has_error'] = true;
@@ -138,6 +160,7 @@ header_html('Import Teams - Step 3');
         <th>Line</th>
         <th>Team Name</th>
         <th>Division</th>
+        <th>Preferred Location</th>
         <th>Status</th>
       </tr>
     </thead>
@@ -148,10 +171,25 @@ header_html('Import Teams - Step 3');
           <td><?= h($item['name']) ?></td>
           <td><?= h($item['division']) ?></td>
           <td>
+            <?php if (!empty($item['preferred_location'])): ?>
+              <?php if ($item['preferred_location_valid']): ?>
+                <span style="color:#388e3c;">✓ <?= h($item['preferred_location']) ?></span>
+              <?php else: ?>
+                <span style="color:#d32f2f;">❌ <?= h($item['preferred_location']) ?> (invalid)</span>
+              <?php endif; ?>
+            <?php else: ?>
+              <span style="color:#999;">—</span>
+            <?php endif; ?>
+          </td>
+          <td>
             <?php if ($item['has_error']): ?>
               <span style="color:#d32f2f;">❌ Error: <?= h($item['error_message']) ?></span>
             <?php elseif ($item['is_duplicate']): ?>
-              <span style="color:#f57c00;">⚠️ Duplicate (will be ignored)</span>
+              <?php if (!empty($item['will_update'])): ?>
+                <span style="color:#1976d2;">🔄 Will update preferred location</span>
+              <?php else: ?>
+                <span style="color:#f57c00;">⚠️ Duplicate (will be ignored)</span>
+              <?php endif; ?>
             <?php else: ?>
               <span style="color:#388e3c;">✓ Will be added</span>
             <?php endif; ?>

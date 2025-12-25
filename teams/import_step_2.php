@@ -21,9 +21,10 @@ try {
     // Get CSV headers
     $csvHeaders = CsvImportHelper::getCSVHeaders($filePath, $delimiter);
     
-    // Auto-detect "name" and "division" columns (case-insensitive)
+    // Auto-detect "name", "division", and "preferred_location" columns (case-insensitive)
     $defaultNameColumn = '';
     $defaultDivisionColumn = '';
+    $defaultPreferredLocationColumn = '';
     
     foreach ($csvHeaders as $header) {
         $headerLower = strtolower($header);
@@ -32,6 +33,9 @@ try {
         }
         if ($headerLower === 'division' && $defaultDivisionColumn === '') {
             $defaultDivisionColumn = $header;
+        }
+        if (in_array($headerLower, ['preferred_location', 'preferred location', 'location', 'home_gym']) && $defaultPreferredLocationColumn === '') {
+            $defaultPreferredLocationColumn = $header;
         }
     }
 } catch (Exception $e) {
@@ -48,6 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Get column mapping
         $nameColumn = $_POST['name_column'] ?? '';
         $divisionColumn = $_POST['division_column'] ?? '';
+        $preferredLocationColumn = $_POST['preferred_location_column'] ?? '';
         
         if ($nameColumn === '') {
             throw new InvalidArgumentException('Please select a column for Team Name.');
@@ -60,7 +65,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Store mapping in session
         $_SESSION['team_import']['column_mapping'] = [
             'name' => $nameColumn,
-            'division' => $divisionColumn
+            'division' => $divisionColumn,
+            'preferred_location' => $preferredLocationColumn
         ];
         
         // Redirect to step 3
@@ -112,6 +118,16 @@ header_html('Import Teams - Step 2');
         <?php endforeach; ?>
       </select>
       <small>Division names must match existing divisions in the system</small>
+    </label>
+
+    <label>Preferred Location (optional)
+      <select name="preferred_location_column">
+        <option value="">-- Skip (Optional) --</option>
+        <?php foreach ($csvHeaders as $header): ?>
+          <option value="<?= h($header) ?>" <?= ($header === $defaultPreferredLocationColumn) ? 'selected' : '' ?>><?= h($header) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <small>Location names must match existing locations in the system</small>
     </label>
 
     <div class="actions">

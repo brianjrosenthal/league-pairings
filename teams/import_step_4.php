@@ -23,16 +23,31 @@ $previewData = $importData['preview_data'];
 $filePath = $importData['file_path'] ?? null;
 
 $successCount = 0;
+$updateCount = 0;
 $errorCount = 0;
 $errors = [];
+$locationsSetCount = 0;
 
 try {
     $ctx = UserContext::getLoggedInUserContext();
     
-    // Import each valid team (non-duplicate, no errors)
+    // Get locations map for lookup
+    $existingLocations = TeamManagement::getAllLocations();
+    $locationsMap = [];
+    foreach ($existingLocations as $location) {
+        $locationsMap[strtolower($location['name'])] = (int)$location['id'];
+    }
+    
+    // Import each valid team
     foreach ($previewData as $item) {
-        if ($item['is_duplicate'] || $item['has_error']) {
-            continue; // Skip duplicates and errors
+        // Skip errors
+        if ($item['has_error']) {
+            continue;
+        }
+        
+        // Skip duplicates unless they have a preferred location to update
+        if ($item['is_duplicate'] && empty($item['will_update'])) {
+            continue;
         }
         
         try {
@@ -43,9 +58,30 @@ try {
                 throw new Exception("Division '{$item['division']}' not found");
             }
             
-            // Create team with empty description (we only have name and division from CSV)
-            TeamManagement::createTeam($ctx, (int)$division['id'], $item['name'], '', null);
-            $successCount++;
+            // Look up preferred location ID if provided
+            $preferredLocationId = null;
+            if (!empty($item['preferred_location'])) {
+                $locationNameLower = strtolower($item['preferred_location']);
+                $preferredLocationId = $locationsMap[$locationNameLower] ?? null;
+                if ($preferredLocationId) {
+                    $locationsSetCount++;
+                }
+            }
+            
+            if ($item['is_duplicate'] && !empty($item['will_update'])) {
+                // Update existing team's preferred location
+                $existingTeam = TeamManagement::findByName($item['name']);
+                if ($existingTeam) {
+                    TeamManagement::updateTeam($ctx, (int)$existingTeam['id'], (int)$division['id'], 
+                        $item['name'], $existingTeam['description'] ?? '', 
+                        $existingTeam['previous_year_ranking'] ?? null, $preferredLocationId);
+                    $updateCount++;
+                }
+            } else {
+                // Create new team with empty description and optional preferred location
+                TeamManagement::createTeam($ctx, (int)$division['id'], $item['name'], '', null, $preferredLocationId);
+                $successCount++;
+            }
             
         } catch (Exception $e) {
             $errorCount++;
@@ -62,7 +98,16 @@ try {
     unset($_SESSION['team_import']);
     
     // Redirect with success message
-    $msg = "Import complete! Added {$successCount} team(s).";
+    $msg = "Import complete!";
+    if ($successCount > 0) {
+        $msg .= " Added {$successCount} team(s).";
+    }
+    if ($updateCount > 0) {
+        $msg .= " Updated {$updateCount} team(s).";
+    }
+    if ($locationsSetCount > 0) {
+        $msg .= " Set {$locationsSetCount} preferred location(s).";
+    }
     if ($errorCount > 0) {
         $msg .= " {$errorCount} error(s) occurred.";
     }
