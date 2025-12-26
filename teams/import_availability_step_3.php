@@ -146,6 +146,16 @@ try {
                             if ($tsMinutes !== null && $tsMinutes >= 720) {
                                 $matchedTimeslotIds[] = $ts['id'];
                             }
+                        } elseif ($modifierUpper === 'BEFORE 2:00 PM') {
+                            // Match timeslots < 2:00 PM (840 minutes)
+                            if ($tsMinutes !== null && $tsMinutes < 840) {
+                                $matchedTimeslotIds[] = $ts['id'];
+                            }
+                        } elseif ($modifierUpper === 'AFTER 2:00 PM') {
+                            // Match timeslots >= 2:00 PM (840 minutes)
+                            if ($tsMinutes !== null && $tsMinutes >= 840) {
+                                $matchedTimeslotIds[] = $ts['id'];
+                            }
                         } else {
                             // Specific time - match within +30 minutes (forward only)
                             $targetMinutes = parseTimeToMinutes($modifier);

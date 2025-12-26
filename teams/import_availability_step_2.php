@@ -16,6 +16,24 @@ $delimiter = CsvImportHelper::getDelimiterChar($importData['delimiter']);
 
 $msg = null;
 $err = null;
+$invalidModifiers = []; // Track invalid modifiers
+
+// Helper function to validate modifier format
+function isValidModifier($modifier) {
+    $modifierUpper = strtoupper(trim($modifier));
+    
+    // Check for allowed time range modifiers
+    if (in_array($modifierUpper, ['AM', 'PM', 'BEFORE 2:00 PM', 'AFTER 2:00 PM'])) {
+        return true;
+    }
+    
+    // Check for valid time format (e.g., "7:00 PM", "11:30 AM")
+    if (preg_match('/^\d+:\d+\s*(AM|PM)$/i', trim($modifier))) {
+        return true;
+    }
+    
+    return false;
+}
 
 try {
     // Get CSV headers
@@ -53,6 +71,14 @@ try {
                 $year = $matches[4]; // e.g., "2026"
                 $modifier = trim($matches[5]); // e.g., "7:00 PM" or "AM"
                 
+                // Validate modifier format
+                if (!isValidModifier($modifier)) {
+                    $invalidModifiers[] = [
+                        'column' => $header,
+                        'modifier' => $modifier
+                    ];
+                }
+                
                 // Convert to date format
                 $dateStr = "$monthName $day, $year";
                 $date = date('Y-m-d', strtotime($dateStr));
@@ -61,7 +87,8 @@ try {
                     'original_header' => $header,
                     'display' => "$dayName $monthName $day, $year - $modifier",
                     'date' => $date,
-                    'modifier' => $modifier
+                    'modifier' => $modifier,
+                    'is_valid' => isValidModifier($modifier)
                 ];
             }
         }
@@ -156,14 +183,43 @@ header_html('Import Team Availability - Step 2');
       <small>Division must match the team's actual division</small>
     </label>
 
+    <?php if (!empty($invalidModifiers)): ?>
+      <div style="background:#ffebee;padding:12px;border-radius:4px;border-left:4px solid #d32f2f;margin-top:12px;">
+        <h3 style="color:#d32f2f;margin-top:0;">❌ Invalid Time Modifiers Detected</h3>
+        <p>The following columns have invalid time modifiers. Modifiers must be one of:</p>
+        <ul style="margin:8px 0;">
+          <li><strong>AM</strong> - Morning slots</li>
+          <li><strong>PM</strong> - Afternoon/Evening slots</li>
+          <li><strong>before 2:00 PM</strong> - Slots before 2:00 PM</li>
+          <li><strong>after 2:00 PM</strong> - Slots at or after 2:00 PM</li>
+          <li><strong>Specific times</strong> - e.g., "7:00 PM", "11:30 AM"</li>
+        </ul>
+        <p><strong>Invalid columns found:</strong></p>
+        <ul style="color:#d32f2f;margin:8px 0;">
+          <?php foreach ($invalidModifiers as $invalid): ?>
+            <li style="margin:4px 0;">
+              <strong>Modifier:</strong> "<?= h($invalid['modifier']) ?>"
+              <br>
+              <span style="font-size:0.85em;color:#666;">From column: <?= h($invalid['column']) ?></span>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+        <p><strong>Please fix your CSV file and re-upload it.</strong></p>
+      </div>
+    <?php endif; ?>
+
     <?php if (!empty($availabilityColumns)): ?>
       <h3>Detected Availability Dates</h3>
       <p class="small">The following game dates were found in your CSV file:</p>
       <ul style="list-style:none;padding-left:0;">
         <?php foreach ($availabilityColumns as $col): ?>
-          <li style="padding:4px 0;">
+          <li style="padding:4px 0;<?= !$col['is_valid'] ? 'color:#d32f2f;' : '' ?>">
+            <?= !$col['is_valid'] ? '❌ ' : '' ?>
             <strong><?= h($col['display']) ?></strong>
             <span class="small" style="color:#666;"> (Date: <?= h($col['date']) ?>, Modifier: <?= h($col['modifier']) ?>)</span>
+            <?php if (!$col['is_valid']): ?>
+              <span style="color:#d32f2f;font-weight:bold;"> - INVALID FORMAT</span>
+            <?php endif; ?>
           </li>
         <?php endforeach; ?>
       </ul>
@@ -174,7 +230,11 @@ header_html('Import Team Availability - Step 2');
     <?php endif; ?>
 
     <div class="actions">
-      <button class="primary" type="submit">Next Step →</button>
+      <?php if (empty($invalidModifiers)): ?>
+        <button class="primary" type="submit">Next Step →</button>
+      <?php else: ?>
+        <button class="primary" type="button" disabled style="opacity:0.5;cursor:not-allowed;" title="Cannot proceed with invalid modifiers">Next Step →</button>
+      <?php endif; ?>
       <a class="button" href="/teams/import_availability_step_1.php">← Back</a>
       <a class="button" href="/teams/">Cancel</a>
     </div>
