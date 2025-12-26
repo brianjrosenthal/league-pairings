@@ -347,14 +347,44 @@ class Phase2Greedy(BasePhase):
         team_games = schedule.get_team_games_in_week(team_id, week_num)
         return len(team_games) < self.max_games_per_week
     
-    def _calculate_team_strength_score(self, team: Dict) -> float:
-        """Calculate team strength score (lower = stronger)."""
-        team_id = team['team_id']
+    def _has_sufficient_season_data(self) -> bool:
+        """
+        Check if previous_games table has >3 weeks of data.
         
-        # Start with previous year ranking (1 = best)
-        score = team.get('previous_year_ranking', 999) or 999
+        Returns:
+            True if data spans more than 3 weeks
+        """
+        if not self.model.previous_games:
+            return False
         
-        # Adjust based on wins and losses
+        # Get all game dates
+        dates = []
+        for game in self.model.previous_games:
+            if game.get('date'):
+                date = game['date']
+                if isinstance(date, str):
+                    date = datetime.strptime(date, '%Y-%m-%d').date()
+                dates.append(date)
+        
+        if not dates:
+            return False
+        
+        # Calculate span in weeks
+        date_range = max(dates) - min(dates)
+        weeks = date_range.days / 7
+        
+        return weeks > 3
+    
+    def _calculate_season_ranking(self, team_id: int) -> float:
+        """
+        Calculate ranking based on current season win/loss record.
+        Lower score = stronger team.
+        
+        Returns:
+            Score from 0-100 where:
+            - 0 = 100% win rate (best team)
+            - 100 = 0% win rate (worst team)
+        """
         wins = 0
         losses = 0
         
@@ -372,8 +402,31 @@ class Phase2Greedy(BasePhase):
                     else:
                         losses += 1
         
-        score = score - wins + losses
-        return score
+        total_games = wins + losses
+        if total_games == 0:
+            return 999  # No games played
+        
+        # Calculate win percentage, then invert and scale to 0-100
+        win_pct = wins / total_games
+        # Convert: 100% wins = 0 (best), 0% wins = 100 (worst)
+        return (1.0 - win_pct) * 100
+    
+    def _calculate_team_strength_score(self, team: Dict) -> float:
+        """
+        Calculate team strength score (lower = stronger).
+        
+        Uses current season win/loss record if >3 weeks of data exists,
+        otherwise falls back to previous year ranking.
+        """
+        team_id = team['team_id']
+        
+        # Check if we have sufficient current season data (>3 weeks)
+        if self._has_sufficient_season_data():
+            # Use current season rankings based on win/loss record
+            return self._calculate_season_ranking(team_id)
+        else:
+            # Use previous year ranking
+            return team.get('previous_year_ranking', 999) or 999
     
     def _teams_played_recently(
         self,
