@@ -214,6 +214,28 @@ class Phase2Greedy(BasePhase):
             if not game_scheduled:
                 attempted_teams.add(focal_team['team_id'])
     
+    def _get_total_game_count(self, team_id: int, schedule: Schedule) -> int:
+        """
+        Calculate total games for a team = previous games + all scheduled games.
+        
+        Args:
+            team_id: Team ID
+            schedule: Current schedule
+            
+        Returns:
+            Total number of games (previous + scheduled so far)
+        """
+        # Get previous games from database (stored in model.team_season_games)
+        previous_count = self.model.team_season_games.get(team_id, 0)
+        
+        # Count all games scheduled so far for this team (all weeks)
+        scheduled_count = 0
+        for game in schedule.games:
+            if game.get('teamA') == team_id or game.get('teamB') == team_id:
+                scheduled_count += 1
+        
+        return previous_count + scheduled_count
+    
     def _select_next_team_fairly(
         self,
         teams: List[Dict],
@@ -222,12 +244,13 @@ class Phase2Greedy(BasePhase):
         exclude_team_ids: set = None
     ) -> Optional[Dict]:
         """
-        Select next team fairly, prioritizing teams with fewer games.
+        Select next team fairly, prioritizing teams with fewer TOTAL games.
         
-        1. Groups teams by current game count
+        1. Groups teams by TOTAL game count (previous + scheduled so far)
         2. Selects from group with minimum games
         3. Randomly chooses within that group
         4. Excludes already-attempted teams
+        5. Still respects weekly game limit
         
         Args:
             teams: List of team dictionaries
@@ -248,19 +271,24 @@ class Phase2Greedy(BasePhase):
             if team['team_id'] in exclude_team_ids:
                 continue
             
-            game_count = len(schedule.get_team_games_in_week(team['team_id'], week_num))
-            if game_count < self.max_games_per_week:
-                team_game_counts.append((team, game_count))
+            # Check weekly limit (still enforced)
+            weekly_game_count = len(schedule.get_team_games_in_week(team['team_id'], week_num))
+            if weekly_game_count >= self.max_games_per_week:
+                continue
+            
+            # Use TOTAL game count for prioritization (previous + all scheduled)
+            total_game_count = self._get_total_game_count(team['team_id'], schedule)
+            team_game_counts.append((team, total_game_count))
         
         if not team_game_counts:
             return None
         
-        # Group by game count
+        # Group by TOTAL game count
         by_count = defaultdict(list)
         for team, count in team_game_counts:
             by_count[count].append(team)
         
-        # Get teams with minimum game count
+        # Get teams with minimum TOTAL game count
         min_count = min(by_count.keys())
         candidates = by_count[min_count]
         
