@@ -104,20 +104,22 @@ class Phase1ACoverage(BasePhase):
         """
         Find the next game for a division.
         
-        Processes teams strongest to weakest, trying to pair each with:
-        1. Teams not played in last 3 weeks (if possible)
-        2. Any available team (fallback)
+        Processes teams by fewest total games first, trying to pair each with:
+        1. Teams of similar strength who haven't played recently (best)
+        2. Teams of similar strength (good)
+        3. Any team who hasn't played recently (acceptable)
+        4. Any available team (fallback)
         
         Args:
             division_id: Division ID
             teams_in_division: List of team dictionaries
-            state: Current scheduling state
+            schedule: Current schedule
             week_num: Current week number
             
         Returns:
             Game dictionary if found, None otherwise
         """
-        # Get teams without games this week, sorted by strength
+        # Get teams without games this week, sorted by total game count (fewest first)
         teams_without_games = self._get_unscheduled_teams_sorted(
             teams_in_division, schedule, week_num
         )
@@ -125,29 +127,69 @@ class Phase1ACoverage(BasePhase):
         if len(teams_without_games) < 2:
             return None  # Need at least 2 teams to make a game
         
-        # Try to find a game for each team
+        # Try to find a game for each team (prioritizing those with fewer total games)
         for i, team1 in enumerate(teams_without_games):
             team1_id = team1['team_id']
             
-            # First pass: Try teams not played recently (last 3 weeks)
-            for team2 in teams_without_games[i+1:]:
+            # Get remaining teams sorted by similar strength
+            remaining_teams = teams_without_games[i+1:]
+            opponents_by_strength = self._find_similar_strength_opponents(
+                team1, remaining_teams, schedule, week_num
+            )
+            
+            # First pass: Try similar strength teams not played recently (best)
+            for team2 in opponents_by_strength:
                 team2_id = team2['team_id']
                 
                 if not self._teams_played_recently(team1_id, team2_id, schedule, week_num, weeks_back=3):
                     game = self._try_to_find_game(team1_id, team2_id, schedule, week_num)
                     if game:
-                        logger.info(f"      Found game (recent check passed): {team1['name']} vs {team2['name']}")
+                        logger.info(f"      Found game (similar strength, not recent): {team1['name']} vs {team2['name']}")
                         return game
             
-            # Second pass: Try any team (ignore recent play constraint)
-            for team2 in teams_without_games[i+1:]:
+            # Second pass: Try similar strength teams allowing recent play (fallback)
+            for team2 in opponents_by_strength:
                 team2_id = team2['team_id']
                 game = self._try_to_find_game(team1_id, team2_id, schedule, week_num)
                 if game:
-                    logger.info(f"      Found game (fallback): {team1['name']} vs {team2['name']}")
+                    logger.info(f"      Found game (similar strength): {team1['name']} vs {team2['name']}")
                     return game
         
         return None
+    
+    def _find_similar_strength_opponents(
+        self,
+        focal_team: Dict,
+        available_teams: List[Dict],
+        schedule: Schedule,
+        week_num: int
+    ) -> List[Dict]:
+        """
+        Find opponents sorted by strength similarity to focal team.
+        
+        Returns opponents sorted by closeness in strength (most similar first).
+        
+        Args:
+            focal_team: Team to find opponents for
+            available_teams: List of available opponent teams
+            schedule: Current schedule
+            week_num: Current week number
+            
+        Returns:
+            List of opponent teams sorted by strength similarity
+        """
+        focal_strength = self._calculate_team_strength_score(focal_team)
+        
+        opponent_scores = []
+        for team in available_teams:
+            team_strength = self._calculate_team_strength_score(team)
+            distance = abs(team_strength - focal_strength)
+            opponent_scores.append((team, distance))
+        
+        # Sort by distance (ascending = most similar first)
+        opponent_scores.sort(key=lambda x: x[1])
+        
+        return [team for team, distance in opponent_scores]
     
     def _get_unscheduled_teams_sorted(
         self,
@@ -156,11 +198,14 @@ class Phase1ACoverage(BasePhase):
         week_num: int
     ) -> List[Dict]:
         """
-        Get teams without games this week, sorted by strength (strongest first).
+        Get teams without games this week, sorted by total game count (fewest first).
+        
+        Prioritizes teams with fewer total games (previous + scheduled),
+        helping teams "catch up" if they haven't played much.
         
         Args:
             teams: List of team dictionaries
-            state: Current scheduling state
+            schedule: Current schedule
             week_num: Current week number
             
         Returns:
@@ -175,118 +220,12 @@ class Phase1ACoverage(BasePhase):
         # Filter to unscheduled teams
         unscheduled = [t for t in teams if t['team_id'] not in scheduled_team_ids]
         
-        # Calculate strength scores and sort (lower score = stronger)
-        scored_teams = [(team, self._calculate_team_strength_score(team)) for team in unscheduled]
-        scored_teams.sort(key=lambda x: x[1])  # Sort by score ascending
+        # Calculate total game counts and sort (fewer games = higher priority)
+        counted_teams = [(team, self._get_total_game_count(team['team_id'], schedule)) 
+                         for team in unscheduled]
+        counted_teams.sort(key=lambda x: x[1])  # Sort by game count ascending
         
-        return [team for team, score in scored_teams]
-    
-    def _calculate_team_strength_score(self, team: Dict) -> float:
-        """
-        Calculate team strength score (lower = stronger).
-        
-        Score = previous_year_ranking - wins + losses
-        
-        Args:
-            team: Team dictionary
-            
-        Returns:
-            Strength score (lower is better)
-        """
-        team_id = team['team_id']
-        
-        # Start with previous year ranking (1 = best)
-        score = team.get('previous_year_ranking', 999) or 999
-        
-        # Adjust based on wins and losses from previous games
-        wins = 0
-        losses = 0
-        
-        for game in self.model.previous_games:
-            if game['team_1_id'] == team_id:
-                if game['team_1_score'] is not None and game['team_2_score'] is not None:
-                    if game['team_1_score'] > game['team_2_score']:
-                        wins += 1
-                    else:
-                        losses += 1
-            elif game['team_2_id'] == team_id:
-                if game['team_1_score'] is not None and game['team_2_score'] is not None:
-                    if game['team_2_score'] > game['team_1_score']:
-                        wins += 1
-                    else:
-                        losses += 1
-        
-        # Subtract 1 for each win, add 1 for each loss
-        score = score - wins + losses
-        
-        return score
-    
-    def _teams_played_recently(
-        self,
-        team1_id: int,
-        team2_id: int,
-        schedule: Schedule,
-        current_week: int,
-        weeks_back: int = 3
-    ) -> bool:
-        """
-        Check if two teams played each other in the last N weeks.
-        
-        Checks both previous games from database and currently scheduled games.
-        
-        Args:
-            team1_id: First team ID
-            team2_id: Second team ID
-            state: Current scheduling state
-            current_week: Current week number
-            weeks_back: Number of weeks to look back
-            
-        Returns:
-            True if teams played recently, False otherwise
-        """
-        # Check previous games from database
-        # Note: We need to map previous game dates to week numbers
-        for game in self.model.previous_games:
-            if self._game_involves_both_teams(game, team1_id, team2_id):
-                # Try to determine which week this game was in
-                game_date = game.get('date')
-                if game_date:
-                    # Find corresponding week number
-                    # This is approximate - we look for how many weeks back from current week
-                    if isinstance(game_date, str):
-                        game_date = datetime.strptime(game_date, '%Y-%m-%d').date()
-                    
-                    # Get current week's start date
-                    if self.model.week_mapping:
-                        # Find a timeslot in current week to get week dates
-                        for ts_id, (week, week_start, week_end) in self.model.week_mapping.items():
-                            if week == current_week:
-                                # Calculate how many weeks ago this game was
-                                days_diff = (week_start - game_date).days
-                                weeks_ago = days_diff // 7
-                                
-                                if 0 < weeks_ago <= weeks_back:
-                                    return True
-                                break
-        
-        # Check currently scheduled games in this run
-        for game in schedule.games:
-            if self._game_involves_both_teams(game, team1_id, team2_id):
-                return True
-        
-        return False
-    
-    def _game_involves_both_teams(self, game: Dict, team1_id: int, team2_id: int) -> bool:
-        """Check if a game involves both specified teams."""
-        game_teams = set()
-        
-        # Handle different game dictionary formats
-        if 'teamA' in game and 'teamB' in game:
-            game_teams = {game['teamA'], game['teamB']}
-        elif 'team_1_id' in game and 'team_2_id' in game:
-            game_teams = {game['team_1_id'], game['team_2_id']}
-        
-        return {team1_id, team2_id} == game_teams
+        return [team for team, count in counted_teams]
     
     def _try_to_find_game(
         self,
