@@ -82,6 +82,7 @@ header_html('Divisions');
           <tr>
             <td><?= h($division['name'] ?? '') ?></td>
             <td class="small">
+              <a class="button small" href="/divisions/team_win_loss_records.php?division_id=<?= (int)$division['id'] ?>">Win/Loss</a>
               <a class="button small" href="/divisions/edit.php?id=<?= (int)$division['id'] ?>">Edit</a>
             </td>
           </tr>

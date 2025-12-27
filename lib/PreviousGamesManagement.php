@@ -197,6 +197,53 @@ class PreviousGamesManagement {
         return $st->fetchAll();
     }
 
+    // Get win/loss records for all teams in a division
+    public static function getWinLossRecordsByDivision(int $divisionId): array {
+        $sql = '
+            SELECT 
+                t.id as team_id,
+                t.name as team_name,
+                COUNT(CASE 
+                    WHEN (pg.team_1_id = t.id AND pg.team_1_score > pg.team_2_score) 
+                      OR (pg.team_2_id = t.id AND pg.team_2_score > pg.team_1_score)
+                    THEN 1 
+                END) as wins,
+                COUNT(CASE 
+                    WHEN (pg.team_1_id = t.id AND pg.team_1_score < pg.team_2_score) 
+                      OR (pg.team_2_id = t.id AND pg.team_2_score < pg.team_1_score)
+                    THEN 1 
+                END) as losses,
+                COUNT(CASE 
+                    WHEN (pg.team_1_id = t.id OR pg.team_2_id = t.id) 
+                     AND pg.team_1_score IS NOT NULL 
+                     AND pg.team_2_score IS NOT NULL
+                    THEN 1 
+                END) as total_games
+            FROM teams t
+            LEFT JOIN previous_games pg ON (pg.team_1_id = t.id OR pg.team_2_id = t.id)
+                AND pg.team_1_score IS NOT NULL 
+                AND pg.team_2_score IS NOT NULL
+            WHERE t.division_id = ?
+            GROUP BY t.id, t.name
+            ORDER BY wins DESC, losses ASC, t.name ASC
+        ';
+        
+        $st = self::pdo()->prepare($sql);
+        $st->execute([$divisionId]);
+        $results = $st->fetchAll();
+        
+        // Calculate win percentage for each team
+        foreach ($results as &$row) {
+            if ($row['total_games'] > 0) {
+                $row['win_percentage'] = ($row['wins'] / $row['total_games']) * 100;
+            } else {
+                $row['win_percentage'] = 0;
+            }
+        }
+        
+        return $results;
+    }
+
     // === Import-specific methods ===
 
     // Find game by date and teams (for duplicate detection during import)
