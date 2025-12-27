@@ -16,7 +16,7 @@ if ($division_id <= 0) {
 }
 
 // Get division info
-$division = DivisionManagement::findDivisionById($division_id);
+$division = DivisionManagement::findById($division_id);
 
 if (!$division) {
     redirect('/divisions/index.php', 'err=' . urlencode('Division not found.'));
