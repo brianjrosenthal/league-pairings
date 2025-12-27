@@ -60,8 +60,15 @@ class Phase1ACoverage(BasePhase):
             
             logger.info(f"\n  Round {round_num}:")
             
-            # Try to schedule one game for each division
-            for division in self.model.divisions:
+            # Sort divisions by their "neediest" team (fewest total games)
+            # Re-sort each round since game counts change as we schedule
+            sorted_divisions = sorted(
+                self.model.divisions,
+                key=lambda div: self._get_division_min_game_count(div['id'], schedule)
+            )
+            
+            # Try to schedule one game for each division (neediest first)
+            for division in sorted_divisions:
                 division_id = division['id']
                 division_name = division['name']
                 
@@ -93,6 +100,31 @@ class Phase1ACoverage(BasePhase):
         logger.info(f"\nPhase 1A Week {week_num}: Scheduled {games_added} games")
         
         return schedule
+    
+    def _get_division_min_game_count(self, division_id: int, schedule: Schedule) -> int:
+        """
+        Get the minimum game count among all teams in a division.
+        
+        Returns the total game count (previous + scheduled) for the team
+        with the fewest games in this division.
+        
+        Args:
+            division_id: Division ID
+            schedule: Current schedule
+            
+        Returns:
+            Minimum game count in the division (999999 if empty)
+        """
+        teams = self.model.teams_by_division.get(division_id, [])
+        if not teams:
+            return 999999  # Empty division goes last
+        
+        min_count = float('inf')
+        for team in teams:
+            count = self._get_total_game_count(team['team_id'], schedule)
+            min_count = min(min_count, count)
+        
+        return int(min_count)
     
     def _find_next_game_for_division(
         self,
