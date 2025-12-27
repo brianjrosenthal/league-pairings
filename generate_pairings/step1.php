@@ -155,16 +155,17 @@ header_html('Generate Pairings');
 
 <div class="card" style="margin-bottom: 16px;">
     <h5>Phase 1A: Maximum Coverage (10% of time)</h5>
-    <p style="margin-bottom: 8px;"><strong>Goal:</strong> Maximize the number of teams that play at least once per week.</p>
-    <p style="margin-bottom: 8px;"><strong>Algorithm:</strong> Greedy round-robin approach</p>
+    <p style="margin-bottom: 8px;"><strong>Goal:</strong> Maximize the number of teams that play at least once per week, prioritizing teams that have played fewer total games.</p>
+    <p style="margin-bottom: 8px;"><strong>Algorithm:</strong> Greedy round-robin approach with fairness prioritization</p>
     <p style="margin-bottom: 8px;"><strong>Process:</strong></p>
     <ol class="small" style="margin-left: 20px;">
-        <li><strong>Round-robin scheduling:</strong> The algorithm processes divisions in rounds, attempting to schedule one game per division in each round</li>
-        <li><strong>Team selection:</strong> Within each division, teams are sorted by strength (using previous year ranking adjusted by current season wins/losses)</li>
-        <li><strong>Matchup selection:</strong> For each unscheduled team, starting with the strongest:
+        <li><strong>Division ordering:</strong> Each round, divisions are sorted by their "neediest" team (the team with the fewest total games including previous games and already-scheduled games). This ensures divisions with teams that need games most get priority.</li>
+        <li><strong>Team selection:</strong> Within each division, teams are sorted by total game count (fewest total games first, counting both previous season games and games scheduled so far). This helps underserved teams "catch up".</li>
+        <li><strong>Matchup selection:</strong> For each unscheduled team, starting with those with the fewest total games:
             <ul style="margin-left: 20px; margin-top: 4px;">
-                <li><strong>First pass:</strong> Try to pair with teams that haven't played each other in the last 3 weeks</li>
-                <li><strong>Second pass:</strong> If no recent-free matchups exist, pair with any available team</li>
+                <li><strong>Opponent ranking:</strong> Available opponents are sorted by strength similarity (closest in strength first) to create more balanced, competitive matchups</li>
+                <li><strong>First pass:</strong> Try to pair with similar-strength teams that haven't played each other in the last 3 weeks</li>
+                <li><strong>Second pass:</strong> If no recent-free matchups exist, pair with any similar-strength team</li>
             </ul>
         </li>
         <li><strong>Timeslot assignment:</strong> Once a matchup is found:
@@ -285,24 +286,30 @@ header_html('Generate Pairings');
 
 <div class="card" style="margin-bottom: 16px;">
     <h5>Phase 2: Greedy Capacity Filling (70% of time)</h5>
-    <p style="margin-bottom: 8px;"><strong>Goal:</strong> Maximize timeslot-location utilization while ensuring fair distribution across all teams.</p>
-    <p style="margin-bottom: 8px;"><strong>Algorithm:</strong> Round-robin with fair team selection and strength-based matching</p>
+    <p style="margin-bottom: 8px;"><strong>Goal:</strong> Maximize timeslot-location utilization while ensuring fair distribution across all teams, helping underserved teams catch up.</p>
+    <p style="margin-bottom: 8px;"><strong>Algorithm:</strong> Round-robin with fair team selection and dynamic strength-based matching</p>
     <p style="margin-bottom: 8px;"><strong>Process:</strong></p>
     <ol class="small" style="margin-left: 20px;">
         <li><strong>Round-robin scheduling:</strong> Process divisions in rounds, attempting to schedule one game per division in each round</li>
         <li><strong>Fair team selection (within each division):</strong>
             <ul style="margin-left: 20px; margin-top: 4px;">
-                <li>Group teams by current game count this week</li>
-                <li>Select from group with fewest games (prioritizes underserved teams)</li>
+                <li><strong>Group teams by TOTAL game count:</strong> Counts previous season games + all games scheduled so far (not just this week)</li>
+                <li>Select from group with fewest total games (helps teams that have been underserved throughout the season)</li>
                 <li>Randomly choose within that group</li>
                 <li>Track teams that couldn't be scheduled to avoid infinite loops</li>
             </ul>
         </li>
-        <li><strong>Strength-based opponent matching:</strong>
+        <li><strong>Dynamic strength-based opponent matching:</strong>
             <ul style="margin-left: 20px; margin-top: 4px;">
+                <li><strong>Strength calculation adapts over time:</strong>
+                    <ul style="margin-left: 20px; margin-top: 4px;">
+                        <li><strong>Early season (≤3 weeks of data):</strong> Uses previous year ranking</li>
+                        <li><strong>Mid/late season (>3 weeks of data):</strong> Switches to current season win/loss record (scaled 0-100)</li>
+                    </ul>
+                </li>
                 <li>Calculate strength distance between focal team and all available opponents</li>
                 <li>Sort opponents by similarity (closest strength first)</li>
-                <li>Creates more competitive, balanced matchups</li>
+                <li>Creates more competitive, balanced matchups that reflect current performance</li>
             </ul>
         </li>
         <li><strong>Two-pass matchup selection:</strong>
