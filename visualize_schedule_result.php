@@ -282,6 +282,101 @@ header_html('Schedule Visualization');
         </div>
     <?php endforeach; ?>
     
+    <!-- Unfilled Timeslots Section -->
+    <?php
+    // Calculate week boundaries from schedule dates
+    $dates = array_column($schedule, 'date');
+    $minDate = min($dates);
+    $maxDate = max($dates);
+    
+    // Find Sunday on or before minDate
+    $minTimestamp = strtotime($minDate);
+    $dayOfWeek = (int)date('N', $minTimestamp); // 1=Mon, 7=Sun
+    $daysToSunday = ($dayOfWeek == 7) ? 0 : $dayOfWeek;
+    $weekStart = date('Y-m-d', strtotime("-{$daysToSunday} days", $minTimestamp));
+    
+    // Find Saturday on or after maxDate
+    $maxTimestamp = strtotime($maxDate);
+    $dayOfWeek = (int)date('N', $maxTimestamp);
+    $daysToSaturday = ($dayOfWeek == 6) ? 0 : (6 - $dayOfWeek);
+    $weekEnd = date('Y-m-d', strtotime("+{$daysToSaturday} days", $maxTimestamp));
+    
+    // Query database for all available location-timeslots in range
+    $sql = 'SELECT 
+                l.name as location_name,
+                t.date,
+                t.modifier
+            FROM locations l
+            INNER JOIN location_availability la ON l.id = la.location_id
+            INNER JOIN timeslots t ON la.timeslot_id = t.id
+            WHERE t.date BETWEEN ? AND ?
+            ORDER BY t.date, l.name, t.modifier';
+    
+    $stmt = pdo()->prepare($sql);
+    $stmt->execute([$weekStart, $weekEnd]);
+    $allAvailableSlots = $stmt->fetchAll();
+    
+    // Build set of used timeslots from CSV schedule
+    $usedSlots = [];
+    foreach ($schedule as $game) {
+        $modifier = $game['time_modifier'] ?? '';
+        $key = $game['location_name'] . '|' . $game['date'] . '|' . $modifier;
+        $usedSlots[$key] = true;
+    }
+    
+    // Filter to unfilled slots
+    $unfilledSlots = [];
+    foreach ($allAvailableSlots as $slot) {
+        $key = $slot['location_name'] . '|' . $slot['date'] . '|' . $slot['modifier'];
+        if (!isset($usedSlots[$key])) {
+            $unfilledSlots[] = $slot;
+        }
+    }
+    ?>
+    
+    <?php if (!empty($unfilledSlots)): ?>
+        <div class="card" style="margin-top: 24px;">
+            <h3>Unfilled Timeslots</h3>
+            <p class="small" style="margin-bottom: 16px; color: #666;">
+                The following location-timeslots are available but not used in the schedule. 
+                Consider filling these to maximize utilization of paid timeslots.
+            </p>
+            <p class="small" style="margin-bottom: 16px;">
+                <strong>Date range:</strong> <?= h(date('M j, Y', strtotime($weekStart))) ?> to <?= h(date('M j, Y', strtotime($weekEnd))) ?>
+                (<?= count($unfilledSlots) ?> unfilled <?= count($unfilledSlots) === 1 ? 'slot' : 'slots' ?>)
+            </p>
+            <div style="overflow-x: auto;">
+                <table class="list">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Day</th>
+                            <th>Location</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($unfilledSlots as $slot): ?>
+                            <tr>
+                                <td><?= h(date('M j, Y', strtotime($slot['date']))) ?></td>
+                                <td><?= h(date('l', strtotime($slot['date']))) ?></td>
+                                <td><?= h($slot['location_name']) ?></td>
+                                <td><?= h($slot['modifier'] ?: '(no time specified)') ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    <?php else: ?>
+        <div class="card" style="margin-top: 24px;">
+            <h3>Unfilled Timeslots</h3>
+            <p class="small" style="color: #666;">
+                All available location-timeslots in the schedule date range are being used. Excellent utilization!
+            </p>
+        </div>
+    <?php endif; ?>
+    
 <?php endif; ?>
 
 <?php footer_html(); ?>
