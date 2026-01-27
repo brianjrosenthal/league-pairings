@@ -4,12 +4,18 @@ require_once __DIR__ . '/../lib/LocationManagement.php';
 Application::init();
 require_login();
 
-$me = current_user();
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header('Location: /locations/');
+    exit;
+}
 
-// Get GET data
-$locationId = isset($_GET['location_id']) ? (int)$_GET['location_id'] : 0;
-$divisionId = isset($_GET['division_id']) ? (int)$_GET['division_id'] : 0;
+require_csrf();
 
+// Get form data
+$locationId = isset($_POST['location_id']) ? (int)$_POST['location_id'] : 0;
+$divisionId = isset($_POST['division_id']) ? (int)$_POST['division_id'] : 0;
+
+// Validate IDs
 if ($locationId <= 0 || $divisionId <= 0) {
     header('Location: /locations/?err=' . urlencode('Invalid location or division ID.'));
     exit;
@@ -23,12 +29,15 @@ if (!$location) {
 }
 
 try {
-    // Remove the holdout
-    LocationManagement::removeHoldout($me, $locationId, $divisionId);
+    $ctx = UserContext::getLoggedInUserContext();
+    LocationManagement::removeHoldout($ctx, $locationId, $divisionId);
     
-    header('Location: /locations/edit.php?id=' . $locationId . '&msg=' . urlencode('Division holdout removed successfully.'));
+    // Success - redirect back to edit page
+    header('Location: /locations/edit.php?id=' . $locationId . '&msg=' . urlencode('Division holdout has been removed.'));
     exit;
+    
 } catch (Exception $e) {
+    // Error - redirect back to edit page
     header('Location: /locations/edit.php?id=' . $locationId . '&err=' . urlencode($e->getMessage()));
     exit;
 }

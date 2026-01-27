@@ -4,18 +4,18 @@ require_once __DIR__ . '/../lib/LocationManagement.php';
 Application::init();
 require_login();
 
-$me = current_user();
-
-// Check CSRF
-if (!verify_csrf($_POST['csrf'] ?? '')) {
-    header('Location: /locations/?err=' . urlencode('Invalid request (CSRF check failed).'));
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header('Location: /locations/');
     exit;
 }
 
-// Get POST data
+require_csrf();
+
+// Get form data
 $locationId = isset($_POST['location_id']) ? (int)$_POST['location_id'] : 0;
 $divisionId = isset($_POST['division_id']) ? (int)$_POST['division_id'] : 0;
 
+// Validate IDs
 if ($locationId <= 0 || $divisionId <= 0) {
     header('Location: /locations/?err=' . urlencode('Invalid location or division ID.'));
     exit;
@@ -29,12 +29,15 @@ if (!$location) {
 }
 
 try {
-    // Add the holdout
-    LocationManagement::addHoldout($me, $locationId, $divisionId);
+    $ctx = UserContext::getLoggedInUserContext();
+    LocationManagement::addHoldout($ctx, $locationId, $divisionId);
     
-    header('Location: /locations/edit.php?id=' . $locationId . '&msg=' . urlencode('Division holdout added successfully.'));
+    // Success - redirect back to edit page
+    header('Location: /locations/edit.php?id=' . $locationId . '&msg=' . urlencode('Division holdout has been added.'));
     exit;
+    
 } catch (Exception $e) {
+    // Error - redirect back to edit page
     header('Location: /locations/edit.php?id=' . $locationId . '&err=' . urlencode($e->getMessage()));
     exit;
 }

@@ -133,9 +133,12 @@ header_html('Edit Location');
           <tr>
             <td><?= h($holdout['name']) ?></td>
             <td class="small">
-              <a href="/locations/holdout_remove_eval.php?location_id=<?= (int)$id ?>&division_id=<?= (int)$holdout['id'] ?>" 
-                 onclick="return confirm('Remove this division holdout?');" 
-                 class="button small">Remove</a>
+              <form method="post" action="/locations/holdout_remove_eval.php" style="display:inline;" onsubmit="return confirm('Remove this division holdout?');">
+                <input type="hidden" name="csrf" value="<?=h(csrf_token())?>">
+                <input type="hidden" name="location_id" value="<?=(int)$id?>">
+                <input type="hidden" name="division_id" value="<?=(int)$holdout['id']?>">
+                <button type="submit" class="button small">Remove</button>
+              </form>
             </td>
           </tr>
         <?php endforeach; ?>
