@@ -26,6 +26,13 @@ foreach ($locations as $location) {
     $locationAffinities[$location['id']] = $affinities;
 }
 
+// Get holdouts for each location
+$locationHoldouts = [];
+foreach ($locations as $location) {
+    $holdouts = LocationManagement::getHoldoutsForLocation((int)$location['id']);
+    $locationHoldouts[$location['id']] = $holdouts;
+}
+
 header_html('Locations');
 ?>
 
@@ -51,6 +58,7 @@ header_html('Locations');
           <th>Name</th>
           <th>Description</th>
           <th>Division Affinities</th>
+          <th>Division Holdouts</th>
           <th></th>
         </tr>
       </thead>
@@ -66,6 +74,17 @@ header_html('Locations');
                   echo '<span style="color:#999;">None</span>';
                 } else {
                   $divisionNames = array_map(function($aff) { return h($aff['name']); }, $affinities);
+                  echo implode(', ', $divisionNames);
+                }
+              ?>
+            </td>
+            <td class="small">
+              <?php 
+                $holdouts = $locationHoldouts[$location['id']] ?? [];
+                if (empty($holdouts)) {
+                  echo '<span style="color:#999;">None</span>';
+                } else {
+                  $divisionNames = array_map(function($holdout) { return h($holdout['name']); }, $holdouts);
                   echo implode(', ', $divisionNames);
                 }
               ?>
