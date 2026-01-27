@@ -109,6 +109,44 @@ header_html('Edit Location');
 </div>
 
 <div class="card">
+  <h3>Division Holdouts</h3>
+  <p class="small" style="margin-bottom: 16px;">
+    Manage which divisions are held out from this location (will NOT be scheduled here).
+  </p>
+  
+  <?php
+    $holdouts = LocationManagement::getHoldoutsForLocation($id);
+  ?>
+  
+  <?php if (empty($holdouts)): ?>
+    <p class="small" style="color:#999;">No division holdouts assigned.</p>
+  <?php else: ?>
+    <table class="list" style="margin-bottom: 16px;">
+      <thead>
+        <tr>
+          <th>Division</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($holdouts as $holdout): ?>
+          <tr>
+            <td><?= h($holdout['name']) ?></td>
+            <td class="small">
+              <a href="/locations/holdout_remove_eval.php?location_id=<?= (int)$id ?>&division_id=<?= (int)$holdout['id'] ?>" 
+                 onclick="return confirm('Remove this division holdout?');" 
+                 class="button small">Remove</a>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  <?php endif; ?>
+  
+  <a class="button" href="/locations/holdout_add.php?location_id=<?= (int)$id ?>">Add Division Holdout</a>
+</div>
+
+<div class="card">
   <h3>Delete Location</h3>
   <p>Deleting this location is permanent and cannot be undone.</p>
   <form method="post" action="/locations/delete_eval.php" onsubmit="return confirm('Are you sure you want to delete this location? This action cannot be undone.');" class="stack">

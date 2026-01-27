@@ -249,6 +249,71 @@ class LocationManagement {
         return $st->fetchAll();
     }
 
+    // === Division Holdouts Management ===
+    
+    // Get all holdout divisions for a location
+    public static function getHoldoutsForLocation(int $locationId): array {
+        $sql = '
+            SELECT d.id, d.name
+            FROM divisions d
+            INNER JOIN location_division_holdouts ldh ON d.id = ldh.division_id
+            WHERE ldh.location_id = ?
+            ORDER BY d.name
+        ';
+        $st = self::pdo()->prepare($sql);
+        $st->execute([$locationId]);
+        return $st->fetchAll();
+    }
+
+    // Add a holdout
+    public static function addHoldout(UserContext $ctx, int $locationId, int $divisionId): bool {
+        self::assertLoggedIn($ctx);
+        
+        $sql = 'INSERT INTO location_division_holdouts (location_id, division_id) VALUES (?, ?)';
+        $st = self::pdo()->prepare($sql);
+        $result = $st->execute([$locationId, $divisionId]);
+        
+        if ($result) {
+            self::log('location.holdout_add', $locationId, [
+                'division_id' => $divisionId
+            ]);
+        }
+        
+        return $result;
+    }
+
+    // Remove a holdout
+    public static function removeHoldout(UserContext $ctx, int $locationId, int $divisionId): bool {
+        self::assertLoggedIn($ctx);
+        
+        $sql = 'DELETE FROM location_division_holdouts WHERE location_id = ? AND division_id = ?';
+        $st = self::pdo()->prepare($sql);
+        $result = $st->execute([$locationId, $divisionId]);
+        
+        if ($result) {
+            self::log('location.holdout_remove', $locationId, [
+                'division_id' => $divisionId
+            ]);
+        }
+        
+        return $result;
+    }
+
+    // Get divisions not yet in holdout list for this location (for dropdown in add form)
+    public static function getAvailableDivisionsForHoldout(int $locationId): array {
+        $sql = '
+            SELECT d.id, d.name
+            FROM divisions d
+            WHERE d.id NOT IN (
+                SELECT division_id FROM location_division_holdouts WHERE location_id = ?
+            )
+            ORDER BY d.name
+        ';
+        $st = self::pdo()->prepare($sql);
+        $st->execute([$locationId]);
+        return $st->fetchAll();
+    }
+
     // === Import Helper Methods ===
 
     // Get all divisions as a lookup map (name => id) for import validation
