@@ -28,6 +28,9 @@ class Phase1BOptimal(BasePhase):
     def get_phase_name(self) -> str:
         return "Phase 1B: Fill-in Scheduling"
     
+    def get_phase_id(self) -> str:
+        return "1B"
+    
     def schedule(
         self,
         schedule: Schedule,
@@ -387,7 +390,8 @@ class Phase1BOptimal(BasePhase):
             'location_name': chosen_tsl['location_name'],
             'tsl_id': chosen_tsl['tsl_id'],
             'date': chosen_tsl['date'],
-            'modifier': chosen_tsl['modifier']
+            'modifier': chosen_tsl['modifier'],
+            'phase': self.get_phase_id()
         }
     
     def _is_sunday_tsl(self, tsl: Dict) -> bool:

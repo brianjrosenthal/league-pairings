@@ -160,7 +160,7 @@ header_html('Generated Schedule');
                         <th>Division</th>
                         <th>Team A</th>
                         <th>Team B</th>
-                        <th style="text-align: right;">Weight</th>
+                        <th>Phase</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -181,11 +181,7 @@ header_html('Generated Schedule');
                             <td><?= h($game['division_name']) ?></td>
                             <td><?= h($game['team_a_name']) ?></td>
                             <td><?= h($game['team_b_name']) ?></td>
-                            <td style="text-align: right;">
-                                <?php if ($game['weight'] !== null): ?>
-                                    <?= number_format($game['weight'], 2) ?>
-                                <?php endif; ?>
-                            </td>
+                            <td><?= h($game['phase'] ?? '---') ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -278,7 +274,7 @@ header_html('Generated Schedule');
             </p>
             <textarea id="csvOutput" readonly style="width: 100%; height: 400px; font-family: monospace; font-size: 12px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; resize: vertical;"><?php
                 // Generate CSV content
-                echo "Date,Day,Time,Division,Location,Team A,Team B\n";
+                echo "Date,Day,Time,Division,Location,Team A,Team B,Phase\n";
                 
                 // Sort schedule by date and time
                 $csvGames = $schedule['schedule'];
@@ -303,8 +299,9 @@ header_html('Generated Schedule');
                     $location = str_replace('"', '""', $game['location_name']);
                     $teamA = str_replace('"', '""', $game['team_a_name']);
                     $teamB = str_replace('"', '""', $game['team_b_name']);
+                    $phase = str_replace('"', '""', $game['phase'] ?? '---');
                     
-                    echo "\"{$formattedDate}\",\"{$dayOfWeek}\",\"{$time}\",\"{$division}\",\"{$location}\",\"{$teamA}\",\"{$teamB}\"\n";
+                    echo "\"{$formattedDate}\",\"{$dayOfWeek}\",\"{$time}\",\"{$division}\",\"{$location}\",\"{$teamA}\",\"{$teamB}\",\"{$phase}\"\n";
                 }
             ?></textarea>
             <div style="margin-top: 12px;">

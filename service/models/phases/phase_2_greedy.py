@@ -31,6 +31,9 @@ class Phase2Greedy(BasePhase):
     def get_phase_name(self) -> str:
         return "Phase 2: Greedy Filling"
     
+    def get_phase_id(self) -> str:
+        return "2"
+    
     def schedule(
         self,
         schedule: Schedule,
@@ -452,7 +455,8 @@ class Phase2Greedy(BasePhase):
             'location_name': chosen_tsl['location_name'],
             'tsl_id': chosen_tsl['tsl_id'],
             'date': chosen_tsl['date'],
-            'modifier': chosen_tsl['modifier']
+            'modifier': chosen_tsl['modifier'],
+            'phase': self.get_phase_id()
         }
     
     def _is_sunday_tsl(self, tsl: Dict) -> bool:
@@ -572,7 +576,8 @@ class Phase2Greedy(BasePhase):
                             'location_name': tsl['location_name'],
                             'tsl_id': tsl_id,
                             'date': tsl_date,
-                            'modifier': tsl.get('modifier')
+                            'modifier': tsl.get('modifier'),
+                            'phase': self.get_phase_id()
                         }
                         
                         if schedule.add_game(game):

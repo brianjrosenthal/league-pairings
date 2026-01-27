@@ -77,6 +77,11 @@ class BasePhase(ABC):
         """Get human-readable phase name for logging."""
         pass
     
+    @abstractmethod
+    def get_phase_id(self) -> str:
+        """Get short phase identifier (e.g., '1A', '1B', '1C', '2')."""
+        pass
+    
     # Shared utility methods for all phases
     
     def _get_total_game_count(self, team_id: int, schedule) -> int:

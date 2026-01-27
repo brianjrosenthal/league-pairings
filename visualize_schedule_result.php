@@ -203,7 +203,8 @@ header_html('Schedule Visualization');
                 'game_num' => $gameNumA,
                 'location' => $location,
                 'modifier' => $modifier,
-                'opponent' => $teamBName
+                'opponent' => $teamBName,
+                'phase' => $game['phase'] ?? ''
             ];
         }
         if (!isset($teamGames[$teamBName]['by_date'][$date])) {
@@ -211,7 +212,8 @@ header_html('Schedule Visualization');
                 'game_num' => $gameNumB,
                 'location' => $location,
                 'modifier' => $modifier,
-                'opponent' => $teamAName
+                'opponent' => $teamAName,
+                'phase' => $game['phase'] ?? ''
             ];
         }
     }
@@ -264,6 +266,11 @@ header_html('Schedule Visualization');
                                             <?php else: ?>
                                             <div style="white-space: nowrap;">
                                                 Game <?= h($gameInfo['game_num']) ?>
+                                            </div>
+                                            <?php endif; ?>
+                                            <?php if (!empty($gameInfo['phase'])): ?>
+                                            <div style="white-space: nowrap; font-size: 0.75em; opacity: 0.8;">
+                                                Phase <?= h($gameInfo['phase']) ?>
                                             </div>
                                             <?php endif; ?>
                                         <?php endif; ?>

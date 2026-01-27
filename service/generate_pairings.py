@@ -213,7 +213,8 @@ class ScheduleGenerator:
                     "team_a_id": game.get('teamA'),
                     "team_b": game.get('teamB_name', 'Unknown'),
                     "team_b_id": game.get('teamB'),
-                    "weight": round(game.get('weight', 0), 3)
+                    "weight": round(game.get('weight', 0), 3),
+                    "phase": game.get('phase', '')
                 })
             except Exception as e:
                 logger.error(f"Error formatting game {i}: {e}")
