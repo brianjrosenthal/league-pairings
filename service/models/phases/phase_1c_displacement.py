@@ -200,6 +200,9 @@ class Phase1CDisplacement(BasePhase):
                     modified_game['teamB'] = unscheduled_team_id
                     modified_game['teamB_name'] = unscheduled_team['name']
                 
+                # Update phase to reflect this modification was done in Phase 1C
+                modified_game['phase'] = self.get_phase_id()
+                
                 displaced_team = self.model.team_lookup[displaced_team_id]
                 return (original_game, modified_game, new_game, displaced_team['name'], partner_team['name'])
         

@@ -417,7 +417,8 @@ class SchedulingManagement {
                 'team_a_name' => $game['team_a'] ?? 'Unknown Team',
                 'team_b_id' => $game['team_b_id'] ?? null,
                 'team_b_name' => $game['team_b'] ?? 'Unknown Team',
-                'weight' => $game['weight'] ?? null
+                'weight' => $game['weight'] ?? null,
+                'phase' => $game['phase'] ?? null
             ];
         }
         
