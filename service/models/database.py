@@ -87,6 +87,9 @@ class Database:
             # Fetch location-division affinities
             location_division_affinities = self._fetch_location_division_affinities(cursor)
             
+            # Fetch location-division holdouts
+            location_division_holdouts = self._fetch_location_division_holdouts(cursor)
+            
             conn.close()
             
             return {
@@ -97,7 +100,8 @@ class Database:
                 "location_availability": location_availability,
                 "team_availability": team_availability,
                 "previous_games": previous_games,
-                "location_division_affinities": location_division_affinities
+                "location_division_affinities": location_division_affinities,
+                "location_division_holdouts": location_division_holdouts
             }
             
         except mysql.connector.Error as e:
@@ -219,6 +223,17 @@ class Database:
                 location_id,
                 division_id
             FROM location_division_affinities
+            ORDER BY division_id, location_id
+        """)
+        return cursor.fetchall()
+    
+    def _fetch_location_division_holdouts(self, cursor) -> List[Dict]:
+        """Fetch location-division holdout mappings."""
+        cursor.execute("""
+            SELECT 
+                location_id,
+                division_id
+            FROM location_division_holdouts
             ORDER BY division_id, location_id
         """)
         return cursor.fetchall()

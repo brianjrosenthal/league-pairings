@@ -103,10 +103,20 @@ class Schedule:
         tsl_id = game.get('tsl_id')
         timeslot_id = game.get('timeslot_id')
         division_id = game.get('division_id')
+        location_id = game.get('location_id')
         
         # Constraint 1: Only one game per TSL
         if tsl_id in self.games_by_tsl:
             violations.append(f"TSL {tsl_id} already used")
+        
+        # Constraint 1b: Division not held out from location
+        if location_id and division_id:
+            if location_id in self.model.location_division_holdouts:
+                holdout_divisions = self.model.location_division_holdouts[location_id]
+                if division_id in holdout_divisions:
+                    location_name = self.model.get_location_name(location_id)
+                    division_name = self.model.get_division_name(division_id)
+                    violations.append(f"Division '{division_name}' is held out from location '{location_name}'")
         
         # Constraint 2: Only one game per team per day
         if timeslot_id and timeslot_id in self.model.day_mapping:

@@ -36,6 +36,11 @@ class DataModel:
             raw_data["location_division_affinities"]
         )
         
+        # Build location division holdouts lookup
+        self.location_division_holdouts = self._build_location_division_holdouts(
+            raw_data["location_division_holdouts"]
+        )
+        
         # Build TSL (Timeslot-Location combinations)
         self.tsls = self._build_tsls(
             raw_data["location_availability"]
@@ -105,6 +110,26 @@ class DataModel:
             preferred[aff['division_id']].add(aff['location_id'])
         
         return preferred
+    
+    def _build_location_division_holdouts(
+        self,
+        holdouts: List[Dict]
+    ) -> Dict[int, Set[int]]:
+        """
+        Build location division holdouts lookup.
+        
+        Args:
+            holdouts: List of location-division holdout records
+            
+        Returns:
+            Dictionary mapping location_id -> set of held out division_ids
+        """
+        holdout_map = defaultdict(set)
+        
+        for holdout in holdouts:
+            holdout_map[holdout['location_id']].add(holdout['division_id'])
+        
+        return holdout_map
     
     def _build_team_availability(
         self, 
