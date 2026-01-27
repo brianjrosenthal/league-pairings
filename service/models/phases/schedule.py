@@ -6,7 +6,7 @@ constraint validation.
 """
 
 from typing import Dict, List, Optional, Set, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import defaultdict
 import logging
 
@@ -130,6 +130,34 @@ class Schedule:
             team_b_week_games = len(self.games_by_team_week.get((team_b, week_num), []))
             if team_b_week_games >= self.max_games_per_week:
                 violations.append(f"Team {team_b} already has {self.max_games_per_week} games in week {week_num}")
+        
+        # Constraint 3b: No more than 2 consecutive days of games
+        if timeslot_id and timeslot_id in self.model.day_mapping:
+            day = self.model.day_mapping[timeslot_id]
+            if isinstance(day, str):
+                day = datetime.strptime(day, '%Y-%m-%d').date()
+            
+            # Check if adding this game would create 3 consecutive days for either team
+            for team_id, team_name in [(team_a, f"Team {team_a}"), (team_b, f"Team {team_b}")]:
+                # Calculate adjacent days
+                day_minus_1 = day - timedelta(days=1)
+                day_minus_2 = day - timedelta(days=2)
+                day_plus_1 = day + timedelta(days=1)
+                day_plus_2 = day + timedelta(days=2)
+                
+                # Check if team has games on adjacent days
+                has_day_minus_1 = bool(self.games_by_team_day.get((team_id, day_minus_1)))
+                has_day_minus_2 = bool(self.games_by_team_day.get((team_id, day_minus_2)))
+                has_day_plus_1 = bool(self.games_by_team_day.get((team_id, day_plus_1)))
+                has_day_plus_2 = bool(self.games_by_team_day.get((team_id, day_plus_2)))
+                
+                # Check for 3 consecutive days scenarios
+                if has_day_minus_1 and has_day_minus_2:
+                    violations.append(f"{team_name} would have games on 3 consecutive days ({day_minus_2}, {day_minus_1}, {day})")
+                elif has_day_minus_1 and has_day_plus_1:
+                    violations.append(f"{team_name} would have games on 3 consecutive days ({day_minus_1}, {day}, {day_plus_1})")
+                elif has_day_plus_1 and has_day_plus_2:
+                    violations.append(f"{team_name} would have games on 3 consecutive days ({day}, {day_plus_1}, {day_plus_2})")
         
         # Constraint 4: Teams only play within their division
         if team_a and team_b:
